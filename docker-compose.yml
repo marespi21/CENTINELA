@@ -12,7 +12,10 @@ services:
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
-    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0"
+    # --skipApiVersionCheck: the azure-storage SDKs in requirements.txt default
+    # to API version 2026-06-06, newer than this Azurite image supports. The
+    # flag is emulator-only (local) and never affects real Azure.
+    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --skipApiVersionCheck"
     ports:
       - "10000:10000" # Blob
       - "10001:10001" # Queue
