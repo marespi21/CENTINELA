@@ -1,21 +1,47 @@
-"""Contrato HTTP de una transacción (Día 1 — solo diseño).
+from __future__ import annotations
 
-Campos del contrato POST /transactions (Semana 1):
+from decimal import Decimal
+from uuid import UUID
 
-Campo              | Tipo           | Obligatorio | Descripción
--------------------|----------------|-------------|------------------------------------------
-transactionId      | UUID           | Sí          | Identificador único de la transacción
-accountId          | String         | Sí          | Cuenta que origina la transacción
-amount             | Decimal        | Sí          | Valor monetario
-currency           | String         | Sí          | COP, USD...
-merchantId         | String         | Sí          | Comercio destino
-merchantCategory   | String         | Sí          | Categoría del comercio
-timestamp          | DateTime UTC   | Sí          | Fecha generada por el servidor
-latitude           | Decimal        | Sí          | Latitud
-longitude          | Decimal        | Sí          | Longitud
+from pydantic import BaseModel, ConfigDict, Field
 
-Notas:
-- Semana 1: solo validar, guardar y responder 202 Accepted.
-- No se calcula score, no se consulta historial, no se abren casos, no se detecta fraude.
-- Los schemas Pydantic se implementarán en un día posterior.
-"""
+
+class TransactionCreateRequest(BaseModel):
+    """Contrato HTTP de entrada para POST /transactions.
+
+    timestamp lo genera el servidor en el caso de uso (UTC).
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "transactionId": "550e8400-e29b-41d4-a716-446655440000",
+                "accountId": "acc-001",
+                "amount": "150000.50",
+                "currency": "COP",
+                "merchantId": "mer-9",
+                "merchantCategory": "restaurants",
+                "latitude": "4.7110",
+                "longitude": "-74.0721",
+            }
+        },
+    )
+
+    transaction_id: UUID = Field(alias="transactionId")
+    account_id: str = Field(alias="accountId", min_length=1)
+    amount: Decimal = Field(gt=0)
+    currency: str = Field(min_length=3, max_length=3)
+    merchant_id: str = Field(alias="merchantId", min_length=1)
+    merchant_category: str = Field(alias="merchantCategory", min_length=1)
+    latitude: Decimal = Field(ge=-90, le=90)
+    longitude: Decimal = Field(ge=-180, le=180)
+
+
+class TransactionAcceptedResponse(BaseModel):
+    """Respuesta 202 Accepted."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    transaction_id: UUID = Field(alias="transactionId", serialization_alias="transactionId")
+    status: str = "accepted"
