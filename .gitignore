@@ -1,11 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
 venv/
-__pycache__/
-*.pyc
-*.pyo
-.env
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
 .pytest_cache/
-.vscode/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Entorno
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE / OS
 .idea/
+.vscode/
+*.swp
 .DS_Store
 Thumbs.db
+
+# Infra / secretos locales
+infra/*.local.sh
+*.pem
+*.key
+credentials.json
+
+# Logs
+*.log
+logs/
