@@ -18,5 +18,28 @@ class Settings:
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
 
+    # Documentos / Storage / Queue (módulo Jorge)
+    storage_connection_string: str = os.getenv("STORAGE_CONNECTION_STRING", "")
+    storage_account_url: str = os.getenv("STORAGE_ACCOUNT_URL", "")
+    blob_container: str = os.getenv("BLOB_CONTAINER", "documents")
+    documents_queue: str = os.getenv("DOCUMENTS_QUEUE", "documents")
+    max_document_mb: int = int(os.getenv("MAX_DOCUMENT_MB", "5"))
+    allowed_document_types: str = os.getenv(
+        "ALLOWED_DOCUMENT_TYPES",
+        "application/pdf,image/png,image/jpeg",
+    )
+
+    @property
+    def max_document_bytes(self) -> int:
+        return self.max_document_mb * 1024 * 1024
+
+    @property
+    def allowed_document_types_set(self) -> frozenset[str]:
+        return frozenset(
+            item.strip()
+            for item in self.allowed_document_types.split(",")
+            if item.strip()
+        )
+
 
 settings = Settings()
