@@ -1,0 +1,69 @@
+{
+  "info": {
+    "name": "CENTINELA API",
+    "description": "Colección de la API de Centinela (Semana 1): health, ingesta de transacciones y subida de documentos (módulo Jorge: Blob + Queue).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": ["{{baseUrl}}"],
+          "path": [""]
+        }
+      }
+    },
+    {
+      "name": "Crear transacción",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transactionId\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"accountId\": \"acc-001\",\n  \"amount\": \"150000.50\",\n  \"currency\": \"COP\",\n  \"merchantId\": \"mer-9\",\n  \"merchantCategory\": \"restaurants\",\n  \"latitude\": \"4.7110\",\n  \"longitude\": \"-74.0721\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/transactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["transactions"]
+        }
+      }
+    },
+    {
+      "name": "Subir documento",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "",
+              "description": "PDF o imagen (application/pdf, image/png, image/jpeg)."
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/documents",
+          "host": ["{{baseUrl}}"],
+          "path": ["documents"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
