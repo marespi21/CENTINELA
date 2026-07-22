@@ -33,6 +33,7 @@ Thumbs.db
 
 # Infra / secretos locales
 infra/*.local.sh
+infra/principal_id.txt
 *.pem
 *.key
 credentials.json
