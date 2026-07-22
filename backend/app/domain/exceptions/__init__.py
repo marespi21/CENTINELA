@@ -1,3 +1,7 @@
+from app.domain.exceptions.auth_exceptions import (
+    ForbiddenError,
+    UnauthorizedError,
+)
 from app.domain.exceptions.document_exceptions import (
     DocumentTooLargeError,
     EmptyDocumentError,
@@ -18,4 +22,6 @@ __all__ = [
     "EmptyDocumentError",
     "InvalidDocumentTypeError",
     "DocumentTooLargeError",
+    "UnauthorizedError",
+    "ForbiddenError",
 ]

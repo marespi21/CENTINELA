@@ -44,11 +44,27 @@ az storage container create \
   --auth-mode login \
   --output none
 
-# --- Paso: 7 Queue Storage ---
+# --- Paso 6.5: Lifecycle policy (módulo Samuel) ---
+echo "[6.5] Aplicando lifecycle policy (cool->archive->delete)..."
+az storage account management-policy create \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --resource-group "${RESOURCE_GROUP}" \
+  --policy "@${SCRIPT_DIR}/lifecycle-policy.json" \
+  --output none
+
+# --- Paso: 7 Queue Storage (transacciones) ---
 echo "[7/11] Creando Queue '${QUEUE_NAME}'..."
 az storage queue create \
   --account-name "${STORAGE_ACCOUNT}" \
   --name "${QUEUE_NAME}" \
+  --auth-mode login \
+  --output none
+
+# --- Paso 7.5: Queue de documentos (módulo Jorge) ---
+echo "[7.5] Creando Queue '${DOCUMENTS_QUEUE}'..."
+az storage queue create \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --name "${DOCUMENTS_QUEUE}" \
   --auth-mode login \
   --output none
 
@@ -88,17 +104,33 @@ echo "    principalId=${PRINCIPAL_ID}"
 echo "${PRINCIPAL_ID}" > "${SCRIPT_DIR}/principal_id.txt"
 echo "    Guardado en infra/principal_id.txt (compartir con Lukas)"
 
-# --- Paso 11: App Settings ---
+# --- Paso 11: App Settings (nombres alineados con la app) ---
 echo "[11/11] Configurando variables de entorno..."
 az webapp config appsettings set \
   --resource-group "${RESOURCE_GROUP}" \
   --name "${WEBAPP}" \
   --settings \
-    ENVIRONMENT=development \
+    ENVIRONMENT=production \
     STORAGE_ACCOUNT="${STORAGE_ACCOUNT}" \
-    QUEUE_NAME="${QUEUE_NAME}" \
     BLOB_CONTAINER="${BLOB_CONTAINER}" \
+    DOCUMENTS_QUEUE="${DOCUMENTS_QUEUE}" \
+    QUEUE_NAME="${QUEUE_NAME}" \
+    AUTH_ENABLED=true \
+    KEY_VAULT_URL="https://${KEY_VAULT}.vault.azure.net/" \
   --output none
+
+# --- Paso 12: Seguridad — Key Vault + RBAC (módulo Lukas) ---
+echo "[12] Configurando Key Vault y RBAC de la Managed Identity..."
+bash "${SCRIPT_DIR}/security.sh"
+
+# --- Paso 13: Acceso privado — VNet integration + Private Endpoint ---
+echo "[13] Configurando acceso privado del storage..."
+bash "${SCRIPT_DIR}/private-network.sh" \
+  || echo "  (omitido: requiere la VNet de Juanjo y App Service SKU B1+)"
+
+# --- Paso 14: Budget + alertas de costo (módulo Chanti) ---
+echo "[14] Configurando budget de costos..."
+bash "${SCRIPT_DIR}/budget.sh" || echo "  (budget omitido)"
 
 echo
 echo "==> Despliegue de infraestructura completado."

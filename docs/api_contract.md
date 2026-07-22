@@ -5,6 +5,12 @@
 - Protocolo: HTTP/JSON (y `multipart/form-data` para subida de archivos)
 - Documentación interactiva: `GET /docs` (Swagger)
 
+## Autenticación (módulo Lukas)
+
+Cuando `AUTH_ENABLED=true`, los endpoints de escritura exigen el header
+**`X-API-Key`** mapeado a un rol (`servicio` o `administrador`). En local
+(`AUTH_ENABLED=false`) no se exige. Ver [security.md](security.md).
+
 ## Endpoints
 
 ### Health
@@ -101,6 +107,8 @@ Formato general:
 
 | Código HTTP | `code` | Cuándo |
 |-------------|--------|--------|
+| `401` | `UNAUTHORIZED` | Falta la clave `X-API-Key` o es inválida |
+| `403` | `FORBIDDEN` | El rol no tiene permiso para la operación |
 | `409` | `DUPLICATE_TRANSACTION` | Transacción ya recibida |
 | `422` | `INVALID_TRANSACTION` | Transacción no cumple reglas de negocio |
 | `422` | `EMPTY_DOCUMENT` | Documento sin contenido |

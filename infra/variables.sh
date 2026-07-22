@@ -16,15 +16,24 @@ WEBAPP=app-${PROJECT}-${ENV}
 STORAGE_ACCOUNT=st${PROJECT}${ENV}
 
 QUEUE_NAME=transactions
+DOCUMENTS_QUEUE=documents
 BLOB_CONTAINER=documents
 
-# App Service SKU (F1 = Free; B1 requiere cuota de cómputo)
+# App Service SKU (F1 = Free; B1+ requiere cuota y es necesario para VNet integration)
 APP_SERVICE_SKU=F1
 
-# Red (integración con Juanjo)
+# Red (integración con Juanjo). Nombres compartidos por deploy-network.sh.
 VNET=vnet-${PROJECT}-${ENV}
 SUBNET_APP=subnet-app
 SUBNET_DATA=subnet-data
+
+# Seguridad (módulo Lukas). Nombre de Key Vault: 3-24, único global.
+KEY_VAULT=kv-${PROJECT}-${ENV}
+
+# Budget / costos (módulo Chanti)
+BUDGET_NAME=budget-${PROJECT}-${ENV}
+BUDGET_AMOUNT=50
+BUDGET_ALERT_EMAIL=${BUDGET_ALERT_EMAIL:-team@example.com}
 
 # Alias usados por scripts legacy / mensajes
 PROJECT_NAME="${PROJECT}"
