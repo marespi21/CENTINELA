@@ -1,7 +1,17 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+
+from backend.app.presentation.api.exception_handlers.http_exceptions import (
+    request_validation_exception_handler,
+)
+from backend.app.presentation.api.routes.transactions import router as transactions_router
+=======
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+>>>>>>> e9a25c545a4bde0524846c6e6d2e9d6ae6f4e49e
 
 from app.domain.exceptions.auth_exceptions import (
     ForbiddenError,
@@ -20,7 +30,22 @@ from app.domain.exceptions.transaction_exceptions import (
 from app.presentation.api.routes.documents import router as documents_router
 from app.presentation.api.routes.transactions import router as transactions_router
 
+app.add_exception_handler(
+    RequestValidationError,
+    request_validation_exception_handler,
+)
 
+
+<<<<<<< HEAD
+@app.get("/health")
+def health() -> dict[str, str]:
+    """Health check del servicio."""
+    return {"status": "ok"}
+
+
+app.include_router(transactions_router)
+
+=======
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Centinela API",
@@ -143,3 +168,4 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+>>>>>>> e9a25c545a4bde0524846c6e6d2e9d6ae6f4e49e
