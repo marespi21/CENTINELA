@@ -3,6 +3,10 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.domain.exceptions.auth_exceptions import (
+    ForbiddenError,
+    UnauthorizedError,
+)
 from app.domain.exceptions.document_exceptions import (
     DocumentTooLargeError,
     EmptyDocumentError,
@@ -56,6 +60,26 @@ def create_app() -> FastAPI:
                 "detail": str(exc),
                 "code": "INVALID_TRANSACTION",
             },
+        )
+
+    @app.exception_handler(UnauthorizedError)
+    async def unauthorized_handler(
+        _request: Request,
+        exc: UnauthorizedError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": str(exc), "code": "UNAUTHORIZED"},
+        )
+
+    @app.exception_handler(ForbiddenError)
+    async def forbidden_handler(
+        _request: Request,
+        exc: ForbiddenError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": str(exc), "code": "FORBIDDEN"},
         )
 
     @app.exception_handler(InvalidDocumentTypeError)

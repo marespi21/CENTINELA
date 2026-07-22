@@ -20,7 +20,7 @@ def get_blob_storage() -> BlobStorage:
         return AzureBlobStorage(
             container_name=settings.blob_container,
             connection_string=settings.storage_connection_string or None,
-            account_url=settings.storage_account_url or None,
+            account_url=settings.blob_endpoint or None,
         )
     """
     return InMemoryBlobStorage()
@@ -36,7 +36,7 @@ def get_document_queue() -> DocumentQueue:
         return AzureQueueService(
             queue_name=settings.documents_queue,
             connection_string=settings.storage_connection_string or None,
-            account_url=settings.storage_account_url or None,
+            account_url=settings.queue_endpoint or None,
         )
     """
     return InMemoryQueue()

@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, File, UploadFile, status
 
 from app.application.dtos.document_dto import UploadDocumentInput
 from app.application.use_cases.upload_document import UploadDocumentUseCase
+from app.domain.value_objects.role import Role
 from app.presentation.api.dependencies.documents import (
     get_upload_document_use_case,
 )
+from app.presentation.api.dependencies.security import Principal, require_roles
 from app.presentation.schemas.document_schema import DocumentAcceptedResponse
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -25,6 +27,9 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def upload_document(
     file: UploadFile = File(...),
     use_case: UploadDocumentUseCase = Depends(get_upload_document_use_case),
+    _principal: Principal = Depends(
+        require_roles(Role.SERVICIO, Role.ADMINISTRADOR)
+    ),
 ) -> DocumentAcceptedResponse:
     content = await file.read()
     result = use_case.execute(
