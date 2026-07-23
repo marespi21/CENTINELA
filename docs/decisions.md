@@ -79,3 +79,13 @@ Registro de decisiones arquitectónicas relevantes.
 - **Contexto:** Las reglas de fraude evalúan ventanas temporales móviles; los datos deben sobrevivir a la ventana más amplia, y el free tier premia liberar almacenamiento.
 - **Decisión:** TTL por defecto del contenedor de ~90 días (`COSMOS_TTL_SECONDS`), sobreescribible por item.
 - **Consecuencias:** Cosmos elimina transacciones vencidas automáticamente; el TTL se ajusta si cambia la ventana máxima de las reglas. Detalle en [`nosql.md`](./nosql.md).
+
+---
+
+## ADR-009: Umbral de scoring de fraude y criterio de decisión
+
+- **Estado:** Aceptada
+- **Autor:** Andrés
+- **Contexto:** El motor suma puntos de 4 reglas (velocidad 25, monto atípico 30, geo-imposible 45, comercio de riesgo 20) y abre un caso si el score supera un umbral. El umbral fija el compromiso entre **falsos positivos** (molestar a clientes legítimos) y **fraude no detectado**.
+- **Decisión:** Umbral por defecto **50**, configurable por app setting `FRAUD_SCORE_THRESHOLD` (sin redeploy). Con estos pesos, **ninguna regla por sí sola abre un caso**: se exige corroboración (dos señales, o una fuerte + una débil). La geo-imposible es la de mayor peso pero sola (45) no alcanza el umbral, para no disparar casos por ruido de geolocalización (VPN, GPS impreciso).
+- **Consecuencias:** Menos falsos positivos a cambio de dejar pasar transacciones con una única señal débil. El umbral se sube (más estricto, menos casos) o se baja (más sensible) sin tocar el código. Detalle y escenarios en [`fraud_scoring.md`](./fraud_scoring.md).

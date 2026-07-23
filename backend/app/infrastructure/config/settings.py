@@ -2,8 +2,11 @@
 
 import os
 from dataclasses import dataclass
+from decimal import Decimal
 
 from dotenv import load_dotenv
+
+from app.domain.value_objects.scoring_config import ScoringConfig
 
 load_dotenv()
 
@@ -38,6 +41,24 @@ class Settings:
     api_keys: str = os.getenv("API_KEYS", "")
     key_vault_url: str = os.getenv("KEY_VAULT_URL", "")
 
+    # Motor de scoring de fraude (módulo Andrés, semana 2).
+    # El UMBRAL es un app setting: cambiarlo NO requiere redesplegar el código.
+    fraud_score_threshold: int = int(os.getenv("FRAUD_SCORE_THRESHOLD", "50"))
+    fraud_weight_velocity: int = int(os.getenv("FRAUD_WEIGHT_VELOCITY", "25"))
+    fraud_weight_atypical_amount: int = int(os.getenv("FRAUD_WEIGHT_ATYPICAL_AMOUNT", "30"))
+    fraud_weight_geo_impossible: int = int(os.getenv("FRAUD_WEIGHT_GEO_IMPOSSIBLE", "45"))
+    fraud_weight_risky_merchant: int = int(os.getenv("FRAUD_WEIGHT_RISKY_MERCHANT", "20"))
+    fraud_velocity_max_tx: int = int(os.getenv("FRAUD_VELOCITY_MAX_TX", "5"))
+    fraud_velocity_window_minutes: int = int(os.getenv("FRAUD_VELOCITY_WINDOW_MIN", "10"))
+    fraud_amount_factor: str = os.getenv("FRAUD_AMOUNT_FACTOR", "3.0")
+    fraud_amount_min_history: int = int(os.getenv("FRAUD_AMOUNT_MIN_HISTORY", "3"))
+    fraud_amount_absolute_cap: str = os.getenv("FRAUD_AMOUNT_ABSOLUTE_CAP", "1000000")
+    fraud_geo_max_speed_kmh: str = os.getenv("FRAUD_GEO_MAX_SPEED_KMH", "900")
+    fraud_risky_categories: str = os.getenv(
+        "FRAUD_RISKY_CATEGORIES",
+        "gambling,crypto,wire_transfer,gift_cards,adult",
+    )
+
     @property
     def max_document_bytes(self) -> int:
         return self.max_document_mb * 1024 * 1024
@@ -61,6 +82,33 @@ class Settings:
         if self.storage_account:
             return f"https://{self.storage_account}.queue.core.windows.net"
         return ""
+
+    @property
+    def scoring_config(self) -> ScoringConfig:
+        """Construye la config del motor desde las variables de entorno.
+
+        Se lee en cada arranque de la función; cambiar un app setting (p. ej.
+        el umbral) reinicia la función y aplica el nuevo valor sin redeploy.
+        """
+        categories = frozenset(
+            c.strip().lower()
+            for c in self.fraud_risky_categories.split(",")
+            if c.strip()
+        )
+        return ScoringConfig(
+            threshold=self.fraud_score_threshold,
+            weight_velocity=self.fraud_weight_velocity,
+            weight_atypical_amount=self.fraud_weight_atypical_amount,
+            weight_geo_impossible=self.fraud_weight_geo_impossible,
+            weight_risky_merchant=self.fraud_weight_risky_merchant,
+            velocity_max_tx=self.fraud_velocity_max_tx,
+            velocity_window_minutes=self.fraud_velocity_window_minutes,
+            amount_factor=Decimal(self.fraud_amount_factor),
+            amount_min_history=self.fraud_amount_min_history,
+            amount_absolute_cap=Decimal(self.fraud_amount_absolute_cap),
+            geo_max_speed_kmh=Decimal(self.fraud_geo_max_speed_kmh),
+            risky_categories=categories,
+        )
 
 
 settings = Settings()
