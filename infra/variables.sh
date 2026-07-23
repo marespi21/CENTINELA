@@ -26,6 +26,8 @@ APP_SERVICE_SKU=F1
 VNET=vnet-${PROJECT}-${ENV}
 SUBNET_APP=subnet-app
 SUBNET_DATA=subnet-data
+SUBNET_DB=subnet-db
+
 
 # Seguridad (módulo Lukas). Nombre de Key Vault: 3-24, único global.
 KEY_VAULT=kv-${PROJECT}-${ENV}
