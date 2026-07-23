@@ -35,6 +35,21 @@ BUDGET_NAME=budget-${PROJECT}-${ENV}
 BUDGET_AMOUNT=50
 BUDGET_ALERT_EMAIL=${BUDGET_ALERT_EMAIL:-team@example.com}
 
+# Almacén NoSQL de transacciones — Cosmos DB SQL API (módulo Chanti, semana 2)
+# El nombre de la cuenta es único global (3-44, minúsculas, dígitos y guiones).
+COSMOS_ACCOUNT=cosmos-${PROJECT}-${ENV}
+COSMOS_DATABASE=centinela
+COSMOS_CONTAINER=transactions
+# Clave de partición: NO se puede cambiar tras crear el contenedor (ver docs/nosql.md).
+COSMOS_PARTITION_KEY=/accountId
+# Consistencia: Session equilibra latencia/costo y garantiza read-your-writes.
+COSMOS_CONSISTENCY=Session
+# Throughput provisionado (RU/s). 400 entra completo en el free tier (1000 RU/s).
+COSMOS_THROUGHPUT=400
+# TTL por defecto del contenedor (segundos). 90 días ≥ ventana temporal más
+# amplia de las reglas de fraude (semana 2). -1 = sin expiración.
+COSMOS_TTL_SECONDS=7776000
+
 # Alias usados por scripts legacy / mensajes
 PROJECT_NAME="${PROJECT}"
 ENVIRONMENT="${ENV}"
