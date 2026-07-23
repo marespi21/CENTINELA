@@ -146,7 +146,7 @@ imprime las RU (`x-ms-request-charge`) de la consulta de historial **con** y
 
 - **Entregable 1** — recurso NoSQL desplegado: `infra/cosmos.sh`.
 - **Entregable 2** — decisiones documentadas: este documento + `docs/decisions.md`
-  (ADR-003…005).
+  (ADR-006…008).
 - **Entregable 13** — reporte de crédito consumido: `docs/credit-report-nosql.md`.
 
 Revisa el PR (debe aprobar): **Juan José (Guarín)**.
