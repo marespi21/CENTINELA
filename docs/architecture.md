@@ -61,3 +61,15 @@ NoSQL para el flujo transaccional de alto volumen, relacional para la gestión d
 casos con integridad ACID. Las decisiones de clave de partición, consistencia y
 TTL están en [`decisions.md`](./decisions.md) (ADR-006…008) y detalladas en
 [`nosql.md`](./nosql.md).
+
+---
+
+## Motor de scoring de fraude (serverless, Andrés)
+
+Función **serverless** disparada por el **evento de transacción** (cola
+`transactions`), nunca por la API. Consulta el historial de la cuenta, evalúa 4
+reglas (velocidad, monto atípico, geo-imposible, comercio de riesgo), suma
+puntos, persiste el score + detalle y publica un caso si supera el umbral. El
+umbral es configurable sin redeploy. Decisión del umbral en
+[`decisions.md`](./decisions.md) (ADR-009); detalle en
+[`fraud_scoring.md`](./fraud_scoring.md).
