@@ -51,3 +51,13 @@ Punto de entrada: `backend/app/main.py`.
 - **[ADR-005](decisions.md#adr-005-estrategia-de-respaldos-automaticos-y-continuidad-en-azure-free-tier):** Estrategia de Respaldos Automáticos y Continuidad en Azure Free Tier.
 - **Especificación Técnica Completa:** [`docs/cases_store_spec.md`](cases_store_spec.md).
 
+---
+
+## Persistencia de transacciones (NoSQL)
+
+Las transacciones y sus scores se almacenan en **Azure Cosmos DB for NoSQL**
+(free tier). Es un almacén distinto y complementario al relacional de casos:
+NoSQL para el flujo transaccional de alto volumen, relacional para la gestión de
+casos con integridad ACID. Las decisiones de clave de partición, consistencia y
+TTL están en [`decisions.md`](./decisions.md) (ADR-006…008) y detalladas en
+[`nosql.md`](./nosql.md).

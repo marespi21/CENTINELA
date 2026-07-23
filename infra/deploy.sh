@@ -132,6 +132,10 @@ bash "${SCRIPT_DIR}/private-network.sh" \
 echo "[14] Configurando budget de costos..."
 bash "${SCRIPT_DIR}/budget.sh" || echo "  (budget omitido)"
 
+# --- Paso 15: Cosmos DB (NoSQL) — almacén de transacciones (módulo Chanti) ---
+echo "[15] Desplegando Cosmos DB (NoSQL)..."
+bash "${SCRIPT_DIR}/cosmos.sh" || echo "  (Cosmos omitido: revisar 'az login' y el free tier)"
+
 echo
 echo "==> Despliegue de infraestructura completado."
 echo
@@ -140,6 +144,7 @@ echo "  RESOURCE_GROUP   = ${RESOURCE_GROUP}"
 echo "  STORAGE_ACCOUNT  = ${STORAGE_ACCOUNT}"
 echo "  BLOB_CONTAINER   = ${BLOB_CONTAINER}"
 echo "  QUEUE_NAME       = ${QUEUE_NAME}"
+echo "  COSMOS_ACCOUNT   = ${COSMOS_ACCOUNT} (NoSQL, pk ${COSMOS_PARTITION_KEY})"
 echo "  WEBAPP           = ${WEBAPP}"
 echo "  PRINCIPAL_ID     = ${PRINCIPAL_ID}"
 echo "  URL              = https://${WEBAPP}.azurewebsites.net"

@@ -50,3 +50,32 @@ Registro de decisiones arquitectónicas relevantes.
 - **Decisión:** Configurar **Automated Daily Backups** nativos de Azure con una retención de 7 días, habilitando **Point-In-Time Restore (PITR)** vía registros WAL (Write-Ahead Logging).
 - **Consecuencias:** Objetivo de Punto de Recuperación (RPO) < 5 minutos y Objetivo de Tiempo de Recuperación (RTO) < 30 minutos sin incurrir en costos adicionales.
 
+---
+
+## ADR-006: Clave de partición `/accountId` en el almacén NoSQL
+
+- **Estado:** Aceptada
+- **Autor:** Chanti / Jorge
+- **Contexto:** Las transacciones y sus scores se guardan en Azure Cosmos DB for NoSQL (free tier). La consulta primaria (req. 2.1) es el historial por cuenta; la clave de partición no se puede cambiar tras la primera escritura.
+- **Decisión:** Particionar por `/accountId`.
+- **Consecuencias:** El historial por cuenta toca una sola partición (bajo costo en RU); las consultas entre cuentas hacen fan-out. Alternativas descartadas: `/id` (rompe la consulta primaria), `/date` (partición caliente en escritura), `/accountId_yyyymm` (reservada como migración si una cuenta supera 20 GB). Detalle en [`nosql.md`](./nosql.md).
+
+---
+
+## ADR-007: Consistencia `Session` en Cosmos DB
+
+- **Estado:** Aceptada
+- **Autor:** Chanti / Jorge
+- **Contexto:** El motor de scoring lee por cuenta el historial que él mismo escribe; se busca baja latencia y bajo costo en RU sin leer scores desactualizados.
+- **Decisión:** Usar nivel de consistencia `Session` (read-your-writes por sesión).
+- **Consecuencias:** Menor latencia/costo que `Strong`/`Bounded Staleness`; se evita el riesgo de `Eventual`.
+
+---
+
+## ADR-008: Expiración por TTL alineada a las ventanas de las reglas
+
+- **Estado:** Aceptada
+- **Autor:** Chanti / Jorge
+- **Contexto:** Las reglas de fraude evalúan ventanas temporales móviles; los datos deben sobrevivir a la ventana más amplia, y el free tier premia liberar almacenamiento.
+- **Decisión:** TTL por defecto del contenedor de ~90 días (`COSMOS_TTL_SECONDS`), sobreescribible por item.
+- **Consecuencias:** Cosmos elimina transacciones vencidas automáticamente; el TTL se ajusta si cambia la ventana máxima de las reglas. Detalle en [`nosql.md`](./nosql.md).
