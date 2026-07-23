@@ -26,3 +26,10 @@ La capa de dominio no depende de frameworks ni de infraestructura.
 ## Backend
 
 Punto de entrada: `backend/app/main.py`.
+
+## Persistencia de transacciones (NoSQL)
+
+Las transacciones y sus scores se almacenan en **Azure Cosmos DB for NoSQL**
+(free tier). Las decisiones de clave de partición, consistencia y TTL están en
+[`decisions.md`](./decisions.md) (ADR-003…005) y detalladas en
+[`nosql.md`](./nosql.md).

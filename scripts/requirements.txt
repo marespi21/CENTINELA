@@ -1,0 +1,3 @@
+# Dependencias de los scripts de verificación de infraestructura (no de la app).
+# Demostración de partición única en Cosmos DB: scripts/cosmos_partition_demo.py
+azure-cosmos>=4.5,<5
