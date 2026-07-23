@@ -28,7 +28,12 @@ az network vnet subnet update -g "$RG" --vnet-name "${VNET}" -n "${SUBNET_APP}" 
 
 # Subnet de datos (storage / private endpoints)
 az network vnet subnet create -g "$RG" --vnet-name "${VNET}" -n "${SUBNET_DATA}" \
-  --address-prefixes 10.0.2.0/24
+  --address-prefixes 10.0.2.0/24 || true
+
+# Subnet delegada para PostgreSQL Flexible Server (módulo Juanjo)
+az network vnet subnet create -g "$RG" --vnet-name "${VNET}" -n "${SUBNET_DB:-subnet-db}" \
+  --address-prefixes 10.0.3.0/24 --delegations Microsoft.DBforPostgreSQL/flexibleServers || true
+
 
 # NSG de la subnet de datos: solo la app entra, Internet no
 az network nsg create -g "$RG" -n NSG-Centinela-Storage -l "$LOC"
