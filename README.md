@@ -29,4 +29,6 @@ uvicorn app.main:app --reload
 - [Decisiones](docs/decisions.md)
 - [Red](docs/network.md)
 - [Almacén de Casos (Especificación Técnica)](docs/cases_store_spec.md)
+- [Justificación de Región (Entregable 3)](docs/region_justification.md)
+
 
