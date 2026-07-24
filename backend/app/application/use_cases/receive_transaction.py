@@ -12,17 +12,32 @@ from app.domain.exceptions.transaction_exceptions import (
     DuplicateTransactionError,
     InvalidTransactionError,
 )
+from app.domain.repositories.transaction_event_publisher import (
+    TransactionEventPublisher,
+)
 from app.domain.repositories.transaction_repository import TransactionRepository
 
 
 class ReceiveTransactionUseCase:
-    """Recibe una transacción, valida reglas mínimas y la persiste.
+    """Recibe una transacción, la persiste y publica el evento de scoring.
 
-    Semana 1: sin score, sin historial, sin casos, sin fraude.
+    Secuencia (semana 2):
+    1. Validar contrato
+    2. Persistir
+    3. Publicar evento en la cola de transacciones
+    4. Responder acuse (202)
+
+    El motor de scoring NO se invoca aquí: reacciona al evento de forma
+    asíncrona. La publicación solo espera a que la cola acepte el mensaje.
     """
 
-    def __init__(self, repository: TransactionRepository) -> None:
+    def __init__(
+        self,
+        repository: TransactionRepository,
+        event_publisher: TransactionEventPublisher,
+    ) -> None:
         self._repository = repository
+        self._events = event_publisher
 
     def execute(self, data: ReceiveTransactionInput) -> ReceiveTransactionOutput:
         self._validate(data)
@@ -43,6 +58,9 @@ class ReceiveTransactionUseCase:
         )
 
         self._repository.save(transaction)
+        # Punto de inserción de mensajería (req. 2.4): publicar y seguir.
+        # No se espera al scoring.
+        self._events.publish(transaction)
 
         return ReceiveTransactionOutput(transaction_id=transaction.transaction_id)
 

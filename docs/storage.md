@@ -12,6 +12,8 @@ con nombres únicos y retención automática.
 | Storage Account | `st<proyecto><env>` (ej. `stcentineladev`) | StorageV2, `Standard_LRS`, sin acceso público a blobs. Único global. |
 | Container | `documents` | Privado (`--public-access off`). |
 | Queue documentos | `documents` | Evento `document.uploaded`. |
+| Queue transacciones | `transactions` | Evento `transaction.received` (API → scoring). Módulo Camila. |
+| Queue casos | `cases` | Caso abierto (scoring → gestión). Módulo Camila; entrega durable. |
 
 Aprovisionamiento: [`infra/deploy.sh`](../infra/deploy.sh) (pasos 5–7.5).
 Variables: [`infra/variables.sh`](../infra/variables.sh).

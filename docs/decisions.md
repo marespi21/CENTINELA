@@ -89,3 +89,25 @@ Registro de decisiones arquitectónicas relevantes.
 - **Contexto:** El motor suma puntos de 4 reglas (velocidad 25, monto atípico 30, geo-imposible 45, comercio de riesgo 20) y abre un caso si el score supera un umbral. El umbral fija el compromiso entre **falsos positivos** (molestar a clientes legítimos) y **fraude no detectado**.
 - **Decisión:** Umbral por defecto **50**, configurable por app setting `FRAUD_SCORE_THRESHOLD` (sin redeploy). Con estos pesos, **ninguna regla por sí sola abre un caso**: se exige corroboración (dos señales, o una fuerte + una débil). La geo-imposible es la de mayor peso pero sola (45) no alcanza el umbral, para no disparar casos por ruido de geolocalización (VPN, GPS impreciso).
 - **Consecuencias:** Menos falsos positivos a cambio de dejar pasar transacciones con una única señal débil. El umbral se sube (más estricto, menos casos) o se baja (más sensible) sin tocar el código. Detalle y escenarios en [`fraud_scoring.md`](./fraud_scoring.md).
+
+---
+
+## ADR-010: Mensajería asíncrona frente a invocación directa del motor
+
+- **Estado:** Aceptada
+- **Autor:** Camila
+- **Contexto:** Tras persistir una transacción, el sistema debe analizarla con el motor de scoring. Invocar el motor desde la API acoplaría latencia, fallos y escalado del scoring a la ruta crítica de ingesta, y violaría la restricción de la semana 2 (la API debe responder antes de que termine el scoring).
+- **Decisión:** La API publica un evento en Azure Queue Storage (`transactions`) y responde `202 Accepted`. El motor (Azure Function) se activa solo por ese mensaje. Queda **prohibido** llamar al scoring desde el endpoint.
+- **Consecuencias:** Latencia de respuesta independiente del análisis; el scoring puede reiniciarse o escalar sin tumbar la API; se habilita la Semana 3 (explicador) sobre el mismo flujo de eventos. Detalle en [`messaging.md`](./messaging.md).
+
+---
+
+## ADR-011: Evento de notificación vs cola con garantía de entrega
+
+- **Estado:** Aceptada
+- **Autor:** Camila
+- **Contexto:** Hay dos propósitos distintos: (1) avisar de que llegó una transacción para analizarla; (2) asegurar que un caso de fraude abierto llegue a la gestión de casos aunque el consumidor esté caído.
+- **Decisión:**
+  - **Cola `transactions`:** distribución del evento de transacción recibida (API → scoring). Es el disparador del motor.
+  - **Cola `cases`:** cola durable scoring → gestión de casos. Azure Queue retiene mensajes hasta que el consumidor los procesa y elimina; si el consumidor está detenido, **cero pérdida**.
+- **Consecuencias:** Separar ambos mecanismos evita confundir “notificar trabajo” con “garantizar procesamiento de un caso”. La prueba de desacoplamiento (`test_messaging_decoupling.py`) verifica el comportamiento con consumidor detenido/reactivado. Detalle en [`messaging.md`](./messaging.md).

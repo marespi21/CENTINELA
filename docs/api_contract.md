@@ -32,7 +32,10 @@ Cuando `AUTH_ENABLED=true`, los endpoints de escritura exigen el header
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `POST` | `/transactions` | Recibe y valida una transacción |
+| `POST` | `/transactions` | Valida, persiste y publica el evento; responde `202` sin esperar al scoring |
+
+**Secuencia (módulo Camila):** persistir → publicar en cola `transactions` → acuse.
+El motor de scoring **no** se invoca desde este endpoint.
 
 **Cuerpo (JSON)**
 
