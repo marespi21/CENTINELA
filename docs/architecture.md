@@ -73,3 +73,12 @@ puntos, persiste el score + detalle y publica un caso si supera el umbral. El
 umbral es configurable sin redeploy. Decisión del umbral en
 [`decisions.md`](./decisions.md) (ADR-009); detalle en
 [`fraud_scoring.md`](./fraud_scoring.md).
+
+---
+
+## Mensajería y desacoplamiento (Camila)
+
+La API **no** invoca el motor: tras persistir publica en la cola
+`transactions` y responde `202`. Los casos que superan el umbral van a la cola
+durable `cases`. Decisiones en [`decisions.md`](./decisions.md) (ADR-010,
+ADR-011); detalle en [`messaging.md`](./messaging.md).

@@ -21,13 +21,21 @@ class Settings:
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
 
-    # Documentos / Storage / Queue (módulos Jorge + Samuel)
+    # Documentos / Storage / Queue (módulos Jorge + Samuel + Camila)
     # STORAGE_ACCOUNT es el nombre de la cuenta; de él se derivan los
     # endpoints de blob y queue (que son distintos entre sí).
     storage_account: str = os.getenv("STORAGE_ACCOUNT", "")
     storage_connection_string: str = os.getenv("STORAGE_CONNECTION_STRING", "")
     blob_container: str = os.getenv("BLOB_CONTAINER", "documents")
     documents_queue: str = os.getenv("DOCUMENTS_QUEUE", "documents")
+    # Cola de eventos de transacción (API → motor de scoring). Alias QUEUE_NAME
+    # por compatibilidad con infra/deploy.sh y Azure Functions.
+    transactions_queue: str = os.getenv(
+        "TRANSACTIONS_QUEUE",
+        os.getenv("QUEUE_NAME", "transactions"),
+    )
+    # Cola durable de casos (scoring → gestión de casos).
+    cases_queue: str = os.getenv("CASES_QUEUE", "cases")
     max_document_mb: int = int(os.getenv("MAX_DOCUMENT_MB", "5"))
     allowed_document_types: str = os.getenv(
         "ALLOWED_DOCUMENT_TYPES",

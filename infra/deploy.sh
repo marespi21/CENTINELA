@@ -68,6 +68,14 @@ az storage queue create \
   --auth-mode login \
   --output none
 
+# --- Paso 7.6: Queue de casos (módulo Camila) — scoring → gestión de casos ---
+echo "[7.6] Creando Queue '${CASES_QUEUE}'..."
+az storage queue create \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --name "${CASES_QUEUE}" \
+  --auth-mode login \
+  --output none
+
 # --- Paso 8: App Service Plan ---
 echo "[8/11] Creando App Service Plan (SKU ${APP_SERVICE_SKU}, region ${APP_LOCATION})..."
 az appservice plan create \
@@ -115,6 +123,8 @@ az webapp config appsettings set \
     BLOB_CONTAINER="${BLOB_CONTAINER}" \
     DOCUMENTS_QUEUE="${DOCUMENTS_QUEUE}" \
     QUEUE_NAME="${QUEUE_NAME}" \
+    TRANSACTIONS_QUEUE="${QUEUE_NAME}" \
+    CASES_QUEUE="${CASES_QUEUE}" \
     AUTH_ENABLED=true \
     KEY_VAULT_URL="https://${KEY_VAULT}.vault.azure.net/" \
   --output none
@@ -144,6 +154,7 @@ echo "  RESOURCE_GROUP   = ${RESOURCE_GROUP}"
 echo "  STORAGE_ACCOUNT  = ${STORAGE_ACCOUNT}"
 echo "  BLOB_CONTAINER   = ${BLOB_CONTAINER}"
 echo "  QUEUE_NAME       = ${QUEUE_NAME}"
+echo "  CASES_QUEUE      = ${CASES_QUEUE}"
 echo "  COSMOS_ACCOUNT   = ${COSMOS_ACCOUNT} (NoSQL, pk ${COSMOS_PARTITION_KEY})"
 echo "  WEBAPP           = ${WEBAPP}"
 echo "  PRINCIPAL_ID     = ${PRINCIPAL_ID}"

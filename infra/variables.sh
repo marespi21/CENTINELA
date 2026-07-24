@@ -17,6 +17,7 @@ STORAGE_ACCOUNT=st${PROJECT}${ENV}
 
 QUEUE_NAME=transactions
 DOCUMENTS_QUEUE=documents
+CASES_QUEUE=cases
 BLOB_CONTAINER=documents
 
 # App Service SKU (F1 = Free; B1+ requiere cuota y es necesario para VNet integration)

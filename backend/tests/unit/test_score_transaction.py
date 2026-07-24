@@ -121,9 +121,13 @@ def test_no_case_published_when_below_threshold() -> None:
 
 
 def test_ingestion_is_decoupled_from_scoring() -> None:
-    # La ingesta (API) NO dispara scoring: su caso de uso solo depende del
-    # repositorio de transacciones. El scoring se ejecuta por el evento.
+    # La ingesta (API) NO dispara scoring: publica un evento y termina.
+    # El scoring se ejecuta por el consumidor de la cola, no desde el use case.
     import inspect
 
     params = inspect.signature(ReceiveTransactionUseCase.__init__).parameters
-    assert set(params) == {"self", "repository"}
+    assert set(params) == {"self", "repository", "event_publisher"}
+    # No hay dependencia del motor de scoring ni de CaseQueue.
+    assert "score" not in "".join(params)
+    assert "case_queue" not in params
+    assert "ScoreTransaction" not in str(ReceiveTransactionUseCase.__init__.__annotations__)

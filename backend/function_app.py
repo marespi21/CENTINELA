@@ -16,6 +16,7 @@ import azure.functions as func
 
 from app.application.dtos.scoring_dto import transaction_from_event
 from app.application.use_cases.score_transaction import ScoreTransactionUseCase
+from app.domain.repositories.case_queue import CaseQueue
 from app.infrastructure.config.settings import settings
 from app.infrastructure.messaging.in_memory_case_queue import InMemoryCaseQueue
 from app.infrastructure.repositories.in_memory_score_repository import (
@@ -28,20 +29,40 @@ from app.infrastructure.repositories.in_memory_transaction_history_repository im
 app = func.FunctionApp()
 
 
+def _azure_configured() -> bool:
+    return bool(settings.storage_connection_string or settings.storage_account)
+
+
+def build_case_queue() -> CaseQueue:
+    """Composition root de la cola de casos (módulo Camila).
+
+    Con Storage configurado → Azure Queue durable (`cases`).
+    Sin configuración → memoria (dev/test).
+    """
+    if _azure_configured():
+        from app.infrastructure.azure.case_queue import AzureCaseQueue
+
+        return AzureCaseQueue(
+            queue_name=settings.cases_queue,
+            connection_string=settings.storage_connection_string or None,
+            account_url=settings.queue_endpoint or None,
+        )
+    return InMemoryCaseQueue()
+
+
 @lru_cache(maxsize=1)
 def build_use_case() -> ScoreTransactionUseCase:
     """Composition root de la función.
 
-    Hoy: adaptadores en memoria (igual que el resto del repo).
-    Producción: reemplazar aquí el historial y la persistencia por los
-    adaptadores de Cosmos DB, y la cola de casos por Azure Queue — sin tocar
-    el caso de uso ni el motor de reglas. La config (incluido el umbral) se
-    toma de `settings.scoring_config`, que se lee de app settings.
+    Hoy: historial/scores en memoria; cola de casos según settings
+    (Azure Queue durable si hay Storage). Sin tocar el caso de uso ni el
+    motor de reglas. La config (incluido el umbral) se toma de
+    `settings.scoring_config`.
     """
     return ScoreTransactionUseCase(
         history_repository=InMemoryTransactionHistoryRepository(),
         score_repository=InMemoryScoreRepository(),
-        case_queue=InMemoryCaseQueue(),
+        case_queue=build_case_queue(),
         config=settings.scoring_config,
     )
 

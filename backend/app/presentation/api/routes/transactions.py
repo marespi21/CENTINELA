@@ -21,8 +21,8 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
     status_code=status.HTTP_202_ACCEPTED,
     summary="Recibir una transacción",
     description=(
-        "Valida y acepta una transacción para procesamiento posterior. "
-        "Semana 1: no calcula score ni detecta fraude."
+        "Valida, persiste y publica el evento de transacción. "
+        "Responde 202 sin esperar al motor de scoring (desacoplado por cola)."
     ),
 )
 def create_transaction(
