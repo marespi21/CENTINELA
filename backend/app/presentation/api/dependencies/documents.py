@@ -8,6 +8,7 @@ from app.domain.repositories.document_queue import DocumentQueue
 from app.infrastructure.config.settings import settings
 from app.infrastructure.messaging.in_memory_queue import InMemoryQueue
 from app.infrastructure.repositories.in_memory_blob_storage import InMemoryBlobStorage
+from app.presentation.api.dependencies import get_secret_provider
 
 
 def _azure_configured() -> bool:
@@ -16,6 +17,21 @@ def _azure_configured() -> bool:
     Sin nada configurado (dev/local) se usan los adaptadores en memoria.
     """
     return bool(settings.storage_connection_string or settings.storage_account)
+
+
+def _resolve_storage_connection_string() -> str | None:
+    """Resuelve la connection string de Storage.
+
+    Prioridad:
+    1. Key Vault (si está configurado).
+    2. Variable de entorno STORAGE_CONNECTION_STRING.
+    """
+    if settings.key_vault_url:
+        provider = get_secret_provider()
+        vault_value = provider.get_secret("storage-connection-string")
+        if vault_value:
+            return vault_value
+    return settings.storage_connection_string or None
 
 
 @lru_cache(maxsize=1)
@@ -30,7 +46,7 @@ def get_blob_storage() -> BlobStorage:
 
         return AzureBlobStorage(
             container_name=settings.blob_container,
-            connection_string=settings.storage_connection_string or None,
+            connection_string=_resolve_storage_connection_string(),
             account_url=settings.blob_endpoint or None,
         )
     return InMemoryBlobStorage()
@@ -48,7 +64,7 @@ def get_document_queue() -> DocumentQueue:
 
         return AzureQueueService(
             queue_name=settings.documents_queue,
-            connection_string=settings.storage_connection_string or None,
+            connection_string=_resolve_storage_connection_string(),
             account_url=settings.queue_endpoint or None,
         )
     return InMemoryQueue()

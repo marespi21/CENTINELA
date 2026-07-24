@@ -63,7 +63,7 @@ def evaluate_atypical_amount(
     """Monto muy por encima de lo habitual de la cuenta."""
     prior = _recent_history(transaction, history)
     if len(prior) >= config.amount_min_history:
-        avg = sum((t.amount for t in prior), Decimal("0")) / Decimal(len(prior))
+        avg = sum((t.amount for t in prior), Decimal(0)) / Decimal(len(prior))
         limit = config.amount_factor * avg
         basis = "account_average"
         observed_basis: dict[str, object] = {

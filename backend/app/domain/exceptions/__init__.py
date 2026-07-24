@@ -15,13 +15,13 @@ from app.domain.exceptions.transaction_exceptions import (
 )
 
 __all__ = [
+    "DocumentTooLargeError",
     "DomainError",
     "DuplicateTransactionError",
-    "InvalidTransactionError",
-    "InvalidDocumentError",
     "EmptyDocumentError",
-    "InvalidDocumentTypeError",
-    "DocumentTooLargeError",
-    "UnauthorizedError",
     "ForbiddenError",
+    "InvalidDocumentError",
+    "InvalidDocumentTypeError",
+    "InvalidTransactionError",
+    "UnauthorizedError",
 ]

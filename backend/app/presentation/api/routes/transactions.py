@@ -6,7 +6,9 @@ from app.application.dtos.transaction_dto import ReceiveTransactionInput
 from app.application.use_cases.receive_transaction import ReceiveTransactionUseCase
 from app.domain.value_objects.role import Role
 from app.presentation.api.dependencies.security import Principal, require_roles
-from app.presentation.api.dependencies.transactions import get_receive_transaction_use_case
+from app.presentation.api.dependencies.transactions import (
+    get_receive_transaction_use_case,
+)
 from app.presentation.schemas.transaction_schema import (
     TransactionAcceptedResponse,
     TransactionCreateRequest,
