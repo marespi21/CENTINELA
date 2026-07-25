@@ -17,6 +17,8 @@ from app.domain.exceptions.transaction_exceptions import (
     DuplicateTransactionError,
     InvalidTransactionError,
 )
+from app.infrastructure.config.settings import settings
+from app.presentation.api.middlewares.rate_limit import RateLimitMiddleware
 from app.presentation.api.routes.documents import router as documents_router
 from app.presentation.api.routes.transactions import router as transactions_router
 
@@ -27,6 +29,8 @@ def create_app() -> FastAPI:
         version="1.0.0",
         description="API de ingesta de transacciones (Semana 1).",
     )
+
+    app.add_middleware(RateLimitMiddleware, settings=settings)
 
     @app.get("/")
     def root() -> dict[str, str]:

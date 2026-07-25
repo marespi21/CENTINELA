@@ -73,9 +73,9 @@ class ReceiveTransactionUseCase:
             raise InvalidTransactionError("merchantCategory is required")
         if not data.currency.strip():
             raise InvalidTransactionError("currency is required")
-        if data.amount <= Decimal("0"):
+        if data.amount <= Decimal(0):
             raise InvalidTransactionError("amount must be greater than 0")
-        if data.latitude < Decimal("-90") or data.latitude > Decimal("90"):
+        if data.latitude < Decimal(-90) or data.latitude > Decimal(90):
             raise InvalidTransactionError("latitude must be between -90 and 90")
-        if data.longitude < Decimal("-180") or data.longitude > Decimal("180"):
+        if data.longitude < Decimal(-180) or data.longitude > Decimal(180):
             raise InvalidTransactionError("longitude must be between -180 and 180")

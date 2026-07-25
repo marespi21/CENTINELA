@@ -49,6 +49,11 @@ class Settings:
     api_keys: str = os.getenv("API_KEYS", "")
     key_vault_url: str = os.getenv("KEY_VAULT_URL", "")
 
+    # Rate limiting por IP (en memoria, sin Redis)
+    rate_limit_enabled: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    rate_limit_max_requests: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "10"))
+    rate_limit_window_seconds: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
     # Motor de scoring de fraude (módulo Andrés, semana 2).
     # El UMBRAL es un app setting: cambiarlo NO requiere redesplegar el código.
     fraud_score_threshold: int = int(os.getenv("FRAUD_SCORE_THRESHOLD", "50"))

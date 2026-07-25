@@ -5,8 +5,10 @@ from dataclasses import dataclass, field
 from fastapi import Depends, Header
 
 from app.domain.exceptions.auth_exceptions import ForbiddenError, UnauthorizedError
+from app.domain.repositories.secret_provider import SecretProvider
 from app.domain.value_objects.role import Role
 from app.infrastructure.config.settings import settings
+from app.presentation.api.dependencies import get_secret_provider
 
 
 @dataclass(frozen=True)
@@ -28,9 +30,27 @@ class AuthPolicy:
         return self.keys.get(api_key)
 
     @classmethod
-    def from_settings(cls) -> "AuthPolicy":
+    def from_settings(cls, secret_provider: SecretProvider | None = None) -> AuthPolicy:
+        """Construye la política desde las fuentes de configuración.
+
+        Prioridad para las API keys:
+        1. Key Vault (secreto 'api-keys').
+        2. Variable de entorno API_KEYS.
+        """
+        raw_keys: str = ""
+
+        # Intentar desde Key Vault primero
+        if secret_provider:
+            vault_value = secret_provider.get_secret("api-keys")
+            if vault_value:
+                raw_keys = vault_value
+
+        # Fallback a variable de entorno
+        if not raw_keys:
+            raw_keys = settings.api_keys
+
         keys: dict[str, Role] = {}
-        for pair in settings.api_keys.split(","):
+        for pair in raw_keys.split(","):
             pair = pair.strip()
             if not pair or ":" not in pair:
                 continue
@@ -45,7 +65,7 @@ class AuthPolicy:
 
 def get_auth_policy() -> AuthPolicy:
     """Composition root de autorización (override en tests)."""
-    return AuthPolicy.from_settings()
+    return AuthPolicy.from_settings(secret_provider=get_secret_provider())
 
 
 def require_roles(*allowed_roles: Role):

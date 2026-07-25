@@ -30,10 +30,10 @@ class ScoringConfig:
     # Si el historial tiene menos de `amount_min_history`, se usa el tope absoluto.
     amount_factor: Decimal = Decimal("3.0")
     amount_min_history: int = 3
-    amount_absolute_cap: Decimal = Decimal("1000000")
+    amount_absolute_cap: Decimal = Decimal(1000000)
 
     # Regla geo-imposible: velocidad implícita entre dos transacciones > tope.
-    geo_max_speed_kmh: Decimal = Decimal("900")
+    geo_max_speed_kmh: Decimal = Decimal(900)
 
     # Regla comercio de riesgo: categoría del comercio en el conjunto de riesgo.
     risky_categories: frozenset[str] = field(
