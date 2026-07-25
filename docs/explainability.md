@@ -57,3 +57,16 @@ Lo que viaja por la cola de casos y se persiste/expone:
 
 **Regla:** no cambiar la forma de `Explanation` / `CaseDetailResponse` sin
 acordarlo con mensajería y casos. Decisión en `decisions.md` (ADR-014).
+
+## Integración en el worker (Semana 3)
+
+El motor (`function_app.py`) ya integra el explicador y la persistencia real:
+
+- Al abrir un caso, el worker invoca `RuleBasedExplainer` y publica el caso con
+  su explicación adjunta (bloque `explanation` en el mensaje de la cola `cases`).
+- Historial y scores usan **Cosmos DB** cuando `COSMOS_ENDPOINT` está configurado
+  (autenticación por Managed Identity o clave); en dev/test caen a memoria.
+  Documentos en el contenedor `transactions` (pk `/accountId`), distinguidos por
+  `docType` (`transaction` / `score`).
+- Prueba de punta a punta: `tests/unit/test_explainer_integration.py`; adaptadores
+  Cosmos: `tests/unit/test_cosmos_repositories.py`.
