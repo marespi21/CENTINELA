@@ -19,6 +19,7 @@ from app.domain.exceptions.transaction_exceptions import (
 )
 from app.infrastructure.config.settings import settings
 from app.presentation.api.middlewares.rate_limit import RateLimitMiddleware
+from app.presentation.api.routes.cases import router as cases_router
 from app.presentation.api.routes.documents import router as documents_router
 from app.presentation.api.routes.transactions import router as transactions_router
 
@@ -143,6 +144,7 @@ def create_app() -> FastAPI:
 
     app.include_router(transactions_router)
     app.include_router(documents_router)
+    app.include_router(cases_router)
     return app
 
 

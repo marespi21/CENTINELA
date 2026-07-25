@@ -138,3 +138,13 @@ Registro de decisiones arquitectónicas relevantes.
 - **Decisión:** Middleware de rate limiting por **IP de origen** con **ventana deslizante en memoria** ([`rate_limit.py`](../backend/app/presentation/api/middlewares/rate_limit.py)). Al superar el límite responde **HTTP 429** con cuerpo `{"code": "RATE_LIMIT_EXCEEDED"}`.
 - **Límites aplicados y justificación:** por defecto **10 peticiones / 60 s por IP** (`RATE_LIMIT_MAX_REQUESTS=10`, `RATE_LIMIT_WINDOW_SECONDS=60`, `RATE_LIMIT_ENABLED=true`), configurables por app setting **sin redeploy**. Es un umbral conservador que protege la disponibilidad del crédito ante saturación: deja pasar el uso normal de un cliente y corta ráfagas anómalas; se ajusta según métricas reales de tráfico.
 - **Consecuencias / limitaciones conocidas:** el estado es **en memoria por instancia/worker**, por lo que el límite efectivo se multiplica con el scale-out; un límite global requeriría un store compartido (Redis). Detrás de un proxy/Front Door conviene derivar el origen de `X-Forwarded-For` en vez de `request.client.host`. Cobertura en `test_rate_limit.py` (excede→429, reinicio tras la ventana, deshabilitado). Detalle en [`security.md`](./security.md).
+
+---
+
+## ADR-014: Contrato de la explicación como base compartida del explicador
+
+- **Estado:** Aceptada
+- **Autor:** Jorge
+- **Contexto:** La Semana 3 introduce el **explicador**: convertir la decisión del motor en una explicación legible para el analista. Tres módulos consumen esa explicación a la vez (mensajería la publica, gestión de casos la persiste/expone, la API la devuelve). Si cada quien asume una forma distinta, hay retrabajo y bloqueo mutuo.
+- **Decisión:** Definir **contract-first** una `Explanation` de dominio ([`explanation.py`](../backend/app/domain/entities/explanation.py)) derivada del `ScoringResult` y su evidencia observada, con un catálogo legible de reglas ([`rule_catalog.py`](../backend/app/domain/value_objects/rule_catalog.py)), un puerto `Explainer`, una serialización JSON estable en camelCase ([`explanation_dto.py`](../backend/app/application/dtos/explanation_dto.py)), un puerto de lectura de casos y el schema HTTP de `GET /cases/{caseId}` (stub 501). Se entrega a `develop` **antes** de que arranquen los demás módulos.
+- **Consecuencias:** Los cuatro frentes trabajan en paralelo contra el contrato desde el día 1, integrando a medida que caen los PRs. La forma de `Explanation`/`CaseDetailResponse` no cambia sin acuerdo. El explicador de referencia es una base funcional y verificable, enriquecible sin romper a los consumidores. Detalle en [`explainability.md`](./explainability.md).
