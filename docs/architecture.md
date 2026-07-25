@@ -100,3 +100,15 @@ Dos protecciones transversales sobre la API:
 
 Decisiones en [`decisions.md`](./decisions.md) (ADR-012, ADR-013); detalle en
 [`security.md`](./security.md).
+
+---
+
+## Explicador de casos (Semana 3)
+
+Cuando el motor abre un caso, un **explicador** transforma el `ScoringResult` y
+su evidencia en una **explicación legible** para el analista (resumen + razones
+por regla con su detalle). Es un contrato compartido: la mensajería lo publica
+en la cola de casos, gestión de casos lo persiste y expone vía
+`GET /cases/{caseId}`, y seguridad protege ese endpoint. Decisión en
+[`decisions.md`](./decisions.md) (ADR-014); detalle y contrato JSON en
+[`explainability.md`](./explainability.md).
