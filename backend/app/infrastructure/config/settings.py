@@ -72,6 +72,13 @@ class Settings:
         "gambling,crypto,wire_transfer,gift_cards,adult",
     )
 
+    # Almacén NoSQL (Cosmos DB) — historial de transacciones y scores del worker.
+    # Sin COSMOS_ENDPOINT se usan los adaptadores en memoria (dev/test).
+    cosmos_endpoint: str = os.getenv("COSMOS_ENDPOINT", "")
+    cosmos_key: str = os.getenv("COSMOS_KEY", "")  # vacío => Managed Identity
+    cosmos_database: str = os.getenv("COSMOS_DATABASE", "centinela")
+    cosmos_container: str = os.getenv("COSMOS_CONTAINER", "transactions")
+
     @property
     def max_document_bytes(self) -> int:
         return self.max_document_mb * 1024 * 1024
@@ -95,6 +102,11 @@ class Settings:
         if self.storage_account:
             return f"https://{self.storage_account}.queue.core.windows.net"
         return ""
+
+    @property
+    def cosmos_configured(self) -> bool:
+        """True si el worker debe usar Cosmos (no los adaptadores en memoria)."""
+        return bool(self.cosmos_endpoint)
 
     @property
     def scoring_config(self) -> ScoringConfig:

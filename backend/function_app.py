@@ -15,8 +15,13 @@ from functools import lru_cache
 import azure.functions as func
 
 from app.application.dtos.scoring_dto import transaction_from_event
+from app.application.services.rule_based_explainer import RuleBasedExplainer
 from app.application.use_cases.score_transaction import ScoreTransactionUseCase
 from app.domain.repositories.case_queue import CaseQueue
+from app.domain.repositories.score_repository import ScoreRepository
+from app.domain.repositories.transaction_history_repository import (
+    TransactionHistoryRepository,
+)
 from app.infrastructure.config.settings import settings
 from app.infrastructure.messaging.in_memory_case_queue import InMemoryCaseQueue
 from app.infrastructure.repositories.in_memory_score_repository import (
@@ -31,6 +36,44 @@ app = func.FunctionApp()
 
 def _azure_configured() -> bool:
     return bool(settings.storage_connection_string or settings.storage_account)
+
+
+def build_history_repository() -> TransactionHistoryRepository:
+    """Composition root del historial (módulo Jorge).
+
+    Con Cosmos configurado → almacén NoSQL; sin configuración → memoria.
+    """
+    if settings.cosmos_configured:
+        from app.infrastructure.azure.cosmos_transaction_history_repository import (
+            CosmosTransactionHistoryRepository,
+        )
+
+        return CosmosTransactionHistoryRepository(
+            endpoint=settings.cosmos_endpoint,
+            database=settings.cosmos_database,
+            container=settings.cosmos_container,
+            key=settings.cosmos_key or None,
+        )
+    return InMemoryTransactionHistoryRepository()
+
+
+def build_score_repository() -> ScoreRepository:
+    """Composition root de la persistencia de scores (módulo Jorge).
+
+    Con Cosmos configurado → almacén NoSQL; sin configuración → memoria.
+    """
+    if settings.cosmos_configured:
+        from app.infrastructure.azure.cosmos_score_repository import (
+            CosmosScoreRepository,
+        )
+
+        return CosmosScoreRepository(
+            endpoint=settings.cosmos_endpoint,
+            database=settings.cosmos_database,
+            container=settings.cosmos_container,
+            key=settings.cosmos_key or None,
+        )
+    return InMemoryScoreRepository()
 
 
 def build_case_queue() -> CaseQueue:
@@ -54,16 +97,18 @@ def build_case_queue() -> CaseQueue:
 def build_use_case() -> ScoreTransactionUseCase:
     """Composition root de la función.
 
-    Hoy: historial/scores en memoria; cola de casos según settings
-    (Azure Queue durable si hay Storage). Sin tocar el caso de uso ni el
-    motor de reglas. La config (incluido el umbral) se toma de
-    `settings.scoring_config`.
+    Selecciona los adaptadores reales cuando la configuración está presente:
+    Cosmos DB para historial y scores, y Azure Queue durable para casos; cae a
+    los adaptadores en memoria en dev/test. Integra el explicador para adjuntar
+    la explicación legible al caso publicado. No se toca el caso de uso ni el
+    motor de reglas. La config (incluido el umbral) se lee de app settings.
     """
     return ScoreTransactionUseCase(
-        history_repository=InMemoryTransactionHistoryRepository(),
-        score_repository=InMemoryScoreRepository(),
+        history_repository=build_history_repository(),
+        score_repository=build_score_repository(),
         case_queue=build_case_queue(),
         config=settings.scoring_config,
+        explainer=RuleBasedExplainer(),
     )
 
 
