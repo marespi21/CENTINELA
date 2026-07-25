@@ -111,3 +111,30 @@ Registro de decisiones arquitectónicas relevantes.
   - **Cola `transactions`:** distribución del evento de transacción recibida (API → scoring). Es el disparador del motor.
   - **Cola `cases`:** cola durable scoring → gestión de casos. Azure Queue retiene mensajes hasta que el consumidor los procesa y elimina; si el consumidor está detenido, **cero pérdida**.
 - **Consecuencias:** Separar ambos mecanismos evita confundir “notificar trabajo” con “garantizar procesamiento de un caso”. La prueba de desacoplamiento (`test_messaging_decoupling.py`) verifica el comportamiento con consumidor detenido/reactivado. Detalle en [`messaging.md`](./messaging.md).
+
+---
+
+## ADR-012: Migración de secretos a Key Vault con Managed Identity y verificación del historial
+
+- **Estado:** Aceptada
+- **Autor:** Lucas
+- **Contexto:** Las credenciales (API keys de la app, connection strings de Storage) no deben vivir en el código, el repositorio ni el historial de git. La API corre en Azure App Service con identidad administrada disponible.
+- **Decisión — estrategia de migración de secretos:**
+  - Todos los secretos se centralizan en **Azure Key Vault** (secretos `api-keys` y `storage-connection-string`); ninguna credencial queda en el código ni en app settings en claro.
+  - Los componentes se autentican con **Managed Identity** vía `DefaultAzureCredential` — sin credencial para obtener credenciales. RBAC de **menor privilegio** en [`infra/security.sh`](../infra/security.sh): `Key Vault Secrets User`, `Storage Blob Data Contributor`, `Storage Queue Data Contributor`.
+  - En producción el Storage se accede por `account_url` + Managed Identity (**sin** connection string); la connection string solo existe como *fallback* local.
+  - Composition root [`get_secret_provider()`](../backend/app/presentation/api/dependencies/__init__.py): usa `AzureKeyVaultSecretProvider` cuando `KEY_VAULT_URL` está configurado, y `InMemorySecretProvider` (entorno) en dev/test. Las API keys se leen de Key Vault con prioridad sobre la variable de entorno.
+- **Decisión — verificación del historial:** `.env` está en `.gitignore` y **nunca** se versionó (solo se versiona `.env.example` con placeholders). Se auditó el historial completo (`git log --all -p`) buscando patrones de secretos.
+- **Resultado de la auditoría:** No se encontraron secretos reales en el historial. El único hallazgo es la clave por defecto del **emulador Azurite** (`AccountName=devstoreaccount1`) en un `.env.example` antiguo; es una clave **pública y universal** del emulador local, no un secreto real, y ya no está en `HEAD`. Ante el hallazgo de un secreto real se procedería a **rotarlo** y reescribir el historial (git filter-repo / BFG).
+- **Consecuencias:** Cero credenciales en código, repo o historial; rotación de secretos sin redeploy. Nota operativa: `get_auth_policy()` no está cacheado, por lo que resuelve `api-keys` contra Key Vault por request — conviene cachear el valor para evitar latencia/throttling bajo carga. Detalle en [`security.md`](./security.md).
+
+---
+
+## ADR-013: Rate limiting por origen y respuesta 429 (protección ante saturación)
+
+- **Estado:** Aceptada
+- **Autor:** Lucas
+- **Contexto:** La API de ingesta es la puerta del servicio de evaluación de crédito/fraude. Picos legítimos o abuso pueden **saturarla** y degradar el servicio para todos. Hay que limitar la tasa por origen y responder con el código correcto al exceder.
+- **Decisión:** Middleware de rate limiting por **IP de origen** con **ventana deslizante en memoria** ([`rate_limit.py`](../backend/app/presentation/api/middlewares/rate_limit.py)). Al superar el límite responde **HTTP 429** con cuerpo `{"code": "RATE_LIMIT_EXCEEDED"}`.
+- **Límites aplicados y justificación:** por defecto **10 peticiones / 60 s por IP** (`RATE_LIMIT_MAX_REQUESTS=10`, `RATE_LIMIT_WINDOW_SECONDS=60`, `RATE_LIMIT_ENABLED=true`), configurables por app setting **sin redeploy**. Es un umbral conservador que protege la disponibilidad del crédito ante saturación: deja pasar el uso normal de un cliente y corta ráfagas anómalas; se ajusta según métricas reales de tráfico.
+- **Consecuencias / limitaciones conocidas:** el estado es **en memoria por instancia/worker**, por lo que el límite efectivo se multiplica con el scale-out; un límite global requeriría un store compartido (Redis). Detrás de un proxy/Front Door conviene derivar el origen de `X-Forwarded-For` en vez de `request.client.host`. Cobertura en `test_rate_limit.py` (excede→429, reinicio tras la ventana, deshabilitado). Detalle en [`security.md`](./security.md).
