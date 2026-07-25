@@ -82,3 +82,21 @@ La API **no** invoca el motor: tras persistir publica en la cola
 `transactions` y responde `202`. Los casos que superan el umbral van a la cola
 durable `cases`. Decisiones en [`decisions.md`](./decisions.md) (ADR-010,
 ADR-011); detalle en [`messaging.md`](./messaging.md).
+
+---
+
+## Seguridad: secretos, identidad y rate limiting (Lucas)
+
+Dos protecciones transversales sobre la API:
+
+- **Secretos en Key Vault + Managed Identity.** Ninguna credencial vive en el
+  código, el repo ni el historial de git (auditado). Los componentes se
+  autentican con Managed Identity (`DefaultAzureCredential`) y leen los secretos
+  de Azure Key Vault con RBAC de menor privilegio. El proveedor de secretos se
+  elige en el composition root según `KEY_VAULT_URL`.
+- **Rate limiting por origen.** Un middleware limita las peticiones por IP en una
+  ventana deslizante y responde **429** al exceder, para proteger la
+  disponibilidad del servicio de crédito ante saturación.
+
+Decisiones en [`decisions.md`](./decisions.md) (ADR-012, ADR-013); detalle en
+[`security.md`](./security.md).
