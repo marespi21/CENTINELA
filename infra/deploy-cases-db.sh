@@ -20,15 +20,36 @@ DDL_FILE="${SCRIPT_DIR}/../scripts/init-cases-db.sql"
 # -----------------------------------------------------------------------------
 # Gestión Segura de Secretos (Sin secretos harcodeados en repositorio)
 # -----------------------------------------------------------------------------
-DB_ADMIN_PASS="${DB_ADMIN_PASS:-}"
-if [[ -z "${DB_ADMIN_PASS}" ]]; then
+if [[ -n "${CASES_DB_DSN:-}" ]]; then
+  echo "==> Modo Local / DSN Detectado: Aplicando DDL en PostgreSQL local/directo..."
+  echo "    DDL File: ${DDL_FILE}"
+  if command -v psql &>/dev/null; then
+    psql "${CASES_DB_DSN}" -f "${DDL_FILE}"
+    echo "==> DDL aplicado exitosamente vía psql en la base de datos local."
+  else
+    echo "[AVISO] 'psql' no se encuentra instalado en el PATH."
+    echo "        Puede aplicar el archivo DDL directamente en su PostgreSQL usando:"
+    echo "        psql \"${CASES_DB_DSN}\" -f \"${DDL_FILE}\""
+  fi
+  exit 0
+fi
+
+if [[ -z "${DB_ADMIN_PASS}" ]] && az account show &>/dev/null; then
   echo "Obteniendo contraseña de base de datos desde Azure Key Vault '${KEY_VAULT}'..."
   DB_ADMIN_PASS=$(az keyvault secret show --vault-name "${KEY_VAULT}" --name "db-admin-password" --query value -o tsv 2>/dev/null || true)
 fi
 
+if [[ -z "${DB_ADMIN_PASS}" ]] && ! az account show &>/dev/null; then
+  echo "[AVISO] No se detectó sesión activa de Azure (az login) ni CASES_DB_DSN."
+  echo "        Para probar localmente sin Azure, declare CASES_DB_DSN:"
+  echo "        export CASES_DB_DSN=\"postgresql://usuario:password@localhost:5432/centinela_cases\""
+  echo "        bash infra/deploy-cases-db.sh"
+  exit 0
+fi
+
 if [[ -z "${DB_ADMIN_PASS}" ]]; then
   echo "[ERROR] No se especificó la variable DB_ADMIN_PASS ni se encontró la secreta 'db-admin-password' en Key Vault."
-  echo "        Por favor declare DB_ADMIN_PASS antes de ejecutar el script."
+  echo "        Por favor declare DB_ADMIN_PASS o CASES_DB_DSN antes de ejecutar el script."
   exit 1
 fi
 

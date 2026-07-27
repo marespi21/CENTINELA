@@ -22,7 +22,7 @@ INSERT INTO estados (id, nombre) VALUES
 ON CONFLICT (nombre) DO NOTHING;
 
 -- Ajuste de secuencia para evitar colisiones futuras en INSERT sin ID explícito
-SELECT setval('estados_id_seq', (SELECT MAX(id) FROM estados));
+SELECT setval('estados_id_seq', COALESCE((SELECT MAX(id) FROM estados), 1));
 
 -- 2. Tabla: casos
 CREATE TABLE IF NOT EXISTS casos (
