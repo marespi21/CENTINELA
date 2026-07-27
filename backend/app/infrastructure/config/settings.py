@@ -79,6 +79,10 @@ class Settings:
     cosmos_database: str = os.getenv("COSMOS_DATABASE", "centinela")
     cosmos_container: str = os.getenv("COSMOS_CONTAINER", "transactions")
 
+    # Almacén relacional de casos (PostgreSQL) — API de lectura de casos.
+    # Sin CASES_DB_DSN se usa el adaptador en memoria (dev/test).
+    cases_db_dsn: str = os.getenv("CASES_DB_DSN", "")
+
     @property
     def max_document_bytes(self) -> int:
         return self.max_document_mb * 1024 * 1024
@@ -107,6 +111,11 @@ class Settings:
     def cosmos_configured(self) -> bool:
         """True si el worker debe usar Cosmos (no los adaptadores en memoria)."""
         return bool(self.cosmos_endpoint)
+
+    @property
+    def cases_db_configured(self) -> bool:
+        """True si la API de casos debe usar PostgreSQL (no memoria)."""
+        return bool(self.cases_db_dsn)
 
     @property
     def scoring_config(self) -> ScoringConfig:

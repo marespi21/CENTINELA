@@ -7,6 +7,7 @@ from app.domain.exceptions.auth_exceptions import (
     ForbiddenError,
     UnauthorizedError,
 )
+from app.domain.exceptions.case_exceptions import CaseNotFoundError
 from app.domain.exceptions.document_exceptions import (
     DocumentTooLargeError,
     EmptyDocumentError,
@@ -126,6 +127,20 @@ def create_app() -> FastAPI:
             content={
                 "detail": str(exc),
                 "code": "EMPTY_DOCUMENT",
+            },
+        )
+
+    @app.exception_handler(CaseNotFoundError)
+    async def case_not_found_handler(
+        _request: Request,
+        exc: CaseNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": str(exc),
+                "code": "CASE_NOT_FOUND",
+                "caseId": exc.case_id,
             },
         )
 

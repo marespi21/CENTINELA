@@ -1,24 +1,38 @@
-"""API de revisión de casos (Semana 3) — STUB de contrato.
+"""API de revisión de casos (Semana 3, módulo Juan José).
 
-Este archivo fija la RUTA y el CONTRATO de salida para desbloquear al equipo.
-Está deliberadamente sin implementar (501) para que:
+`GET /cases/{caseId}` devuelve el caso con su explicación legible y su traza de
+auditoría. La lectura se resuelve por el puerto `CaseReadRepository` (PostgreSQL
+en producción, memoria en dev/test). Responde 404 (CASE_NOT_FOUND) si no existe.
 
-- Gestión de casos (Juanjose) inyecte un `CaseReadRepository` y mapee
-  `CaseDetail` -> `CaseDetailResponse` (ver TODO).
-- Seguridad (Lucas) proteja el endpoint con `require_roles(...)` (lectura para
-  Analista/Auditor/Administrador) y resuelva el acceso temporal a documentos.
-
-No cambiar la forma de `CaseDetailResponse` sin acordarlo: la consumen la API,
-la mensajería y el frontend.
+Pendiente de seguridad (Lucas): proteger el endpoint con `require_roles(...)`
+(lectura para Analista/Auditor/Administrador) y el acceso temporal a documentos.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends
 
-from app.presentation.schemas.case_schema import CaseDetailResponse
+from app.application.dtos.explanation_dto import serialize_explanation
+from app.domain.exceptions.case_exceptions import CaseNotFoundError
+from app.domain.repositories.case_read_repository import CaseDetail, CaseReadRepository
+from app.presentation.api.dependencies.cases import get_case_read_repository
+from app.presentation.schemas.case_schema import CaseDetailResponse, ExplanationSchema
 
 router = APIRouter(prefix="/cases", tags=["cases"])
+
+
+def _to_response(detail: CaseDetail) -> CaseDetailResponse:
+    return CaseDetailResponse(
+        case_id=detail.case_id,
+        transaction_id=detail.transaction_id,
+        account_id=detail.account_id,
+        status=detail.status,
+        opened_at=detail.opened_at,
+        explanation=ExplanationSchema.model_validate(
+            serialize_explanation(detail.explanation)
+        ),
+        audit_trail=detail.audit_trail,
+    )
 
 
 @router.get(
@@ -26,15 +40,11 @@ router = APIRouter(prefix="/cases", tags=["cases"])
     response_model=CaseDetailResponse,
     summary="Detalle de un caso con su explicación (Semana 3)",
 )
-async def get_case(case_id: str) -> CaseDetailResponse:
-    # TODO(Juanjose): inyectar CaseReadRepository, buscar el caso y mapearlo;
-    #   devolver 404 (CASE_NOT_FOUND) si no existe.
-    # TODO(Lucas): añadir Depends(require_roles(...)) para lectura de casos.
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail={
-            "detail": "Case review endpoint not implemented yet (contract stub).",
-            "code": "NOT_IMPLEMENTED",
-            "caseId": case_id,
-        },
-    )
+async def get_case(
+    case_id: str,
+    repo: CaseReadRepository = Depends(get_case_read_repository),
+) -> CaseDetailResponse:
+    detail = repo.get_case(case_id)
+    if detail is None:
+        raise CaseNotFoundError(case_id)
+    return _to_response(detail)

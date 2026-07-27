@@ -176,3 +176,38 @@ CREATE TRIGGER trg_audit_resoluciones
 AFTER INSERT OR UPDATE OR DELETE ON resoluciones
 FOR EACH ROW
 EXECUTE FUNCTION audit_resoluciones_change();
+
+-- =============================================================================
+-- Semana 3 (módulo Juan José): explicación del caso, persistida e inmutable
+-- =============================================================================
+
+-- Vincular el caso con la transacción y la cuenta que lo originaron.
+ALTER TABLE casos ADD COLUMN IF NOT EXISTS transaction_id UUID;
+ALTER TABLE casos ADD COLUMN IF NOT EXISTS account_id VARCHAR(100);
+
+-- 6. Tabla: caso_explicaciones (Append-Only / Inmutable)
+-- Guarda la explicación legible generada por el motor al abrir el caso.
+-- `explanation` es el contrato JSON completo (serialize_explanation).
+CREATE TABLE IF NOT EXISTS caso_explicaciones (
+    id BIGSERIAL PRIMARY KEY,
+    caso_id UUID NOT NULL REFERENCES casos(id) ON DELETE CASCADE,
+    transaction_id UUID NOT NULL,
+    account_id VARCHAR(100) NOT NULL,
+    score INT NOT NULL,
+    threshold INT NOT NULL,
+    is_case BOOLEAN NOT NULL,
+    summary TEXT NOT NULL,
+    explanation JSONB NOT NULL,
+    generado_en TIMESTAMP WITH TIME ZONE NOT NULL,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_caso_explicaciones_caso ON caso_explicaciones (caso_id);
+
+-- Inmutabilidad: la explicación no se modifica ni se borra (reusa la regla de
+-- la auditoría). Solo se permite INSERT.
+DROP TRIGGER IF EXISTS trg_prevent_explicacion_tampering ON caso_explicaciones;
+CREATE TRIGGER trg_prevent_explicacion_tampering
+BEFORE UPDATE OR DELETE ON caso_explicaciones
+FOR EACH ROW
+EXECUTE FUNCTION prevent_audit_tampering();
