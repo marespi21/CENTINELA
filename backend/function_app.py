@@ -16,14 +16,19 @@ import azure.functions as func
 
 from app.application.dtos.scoring_dto import transaction_from_event
 from app.application.services.rule_based_explainer import RuleBasedExplainer
+from app.application.use_cases.persist_opened_case import PersistOpenedCaseUseCase
 from app.application.use_cases.score_transaction import ScoreTransactionUseCase
 from app.domain.repositories.case_queue import CaseQueue
+from app.domain.repositories.case_write_repository import CaseWriteRepository
 from app.domain.repositories.score_repository import ScoreRepository
 from app.domain.repositories.transaction_history_repository import (
     TransactionHistoryRepository,
 )
 from app.infrastructure.config.settings import settings
 from app.infrastructure.messaging.in_memory_case_queue import InMemoryCaseQueue
+from app.infrastructure.repositories.in_memory_case_write_repository import (
+    InMemoryCaseWriteRepository,
+)
 from app.infrastructure.repositories.in_memory_score_repository import (
     InMemoryScoreRepository,
 )
@@ -112,6 +117,26 @@ def build_use_case() -> ScoreTransactionUseCase:
     )
 
 
+def build_case_write_repository() -> CaseWriteRepository:
+    """Composition root de la escritura de casos (módulo Camila/Juan José).
+
+    Con la base de casos configurada → PostgreSQL; sin configuración → memoria.
+    """
+    if settings.cases_db_configured:
+        from app.infrastructure.postgres.pg_case_write_repository import (
+            PgCaseWriteRepository,
+        )
+
+        return PgCaseWriteRepository(dsn=settings.cases_db_dsn)
+    return InMemoryCaseWriteRepository()
+
+
+@lru_cache(maxsize=1)
+def build_persist_case_use_case() -> PersistOpenedCaseUseCase:
+    """Composition root del consumidor de la cola `cases` (módulo Camila)."""
+    return PersistOpenedCaseUseCase(build_case_write_repository())
+
+
 @app.function_name(name="score_transaction")
 @app.queue_trigger(
     arg_name="msg",
@@ -131,3 +156,19 @@ def score_transaction(msg: func.QueueMessage) -> None:
         result.is_case,
         [r.rule_id for r in result.triggered_rules],
     )
+
+
+@app.function_name(name="persist_case")
+@app.queue_trigger(
+    arg_name="msg",
+    queue_name="cases",
+    connection="AzureWebJobsStorage",
+)
+def persist_case(msg: func.QueueMessage) -> None:
+    """Consumidor de la cola durable `cases`: persiste el caso y su explicación.
+
+    La cola garantiza entrega: si esta función está caída, el mensaje permanece
+    hasta procesarse (cero pérdida de casos).
+    """
+    case_id = build_persist_case_use_case().execute(msg.get_body().decode("utf-8"))
+    logging.info("persisted case=%s", case_id)

@@ -67,6 +67,22 @@ cd backend && pytest tests/unit/test_messaging_decoupling.py -v
 | Con consumidor de casos detenido, la API sigue | `test_api_keeps_accepting_when_case_consumer_is_stopped` |
 | Al reactivar, cero casos perdidos | `test_pending_cases_are_processed_without_loss_when_consumer_restarts` |
 
+## Consumidor de casos (Semana 3)
+
+El caso publicado en la cola `cases` incluye el **payload de la explicación**
+(contrato `serialize_explanation`, camelCase). Un consumidor durable —función
+`persist_case` en `function_app.py`— lo entrega a gestión de casos:
+
+- Parsea el mensaje ([`case_message_dto`](../backend/app/application/dtos/case_message_dto.py))
+  y ejecuta [`PersistOpenedCaseUseCase`](../backend/app/application/use_cases/persist_opened_case.py).
+- Persiste el caso y su explicación vía `CaseWriteRepository` (PostgreSQL en
+  producción, memoria en dev/test).
+- **Garantía de entrega:** la cola `cases` es durable; si el consumidor está
+  caído, el mensaje permanece hasta procesarse (cero pérdida). La explicación
+  sobrevive el ciclo caído/reactivado.
+- Loop punta a punta y garantía en
+  [`test_persist_case.py`](../backend/tests/unit/test_persist_case.py).
+
 ## Entregables
 
 | # | Qué |
