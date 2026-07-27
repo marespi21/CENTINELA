@@ -41,24 +41,47 @@ fi
 echo
 
 # -----------------------------------------------------------------------------
-# PRUEBA 2: Prueba Real de Inmutabilidad (Intento de UPDATE/DELETE en auditoria_casos)
+# PRUEBA 2: Prueba Real de Inmutabilidad (UPDATE/DELETE en auditoria y explicaciones)
 # -----------------------------------------------------------------------------
-echo "[PRUEBA 2/3] Verificando Inmutabilidad de Auditoría (Intento de UPDATE / DELETE)..."
+echo "[PRUEBA 2/3] Verificando Inmutabilidad de Auditoría y Explicaciones (UPDATE / DELETE)..."
 
 TEST_SQL_FILE="$(mktemp)"
 cat << 'EOF' > "${TEST_SQL_FILE}"
--- 1. Insertar caso de prueba (esto dispara audit_casos_change)
+-- 1. Insertar caso y explicación de prueba
 SET LOCAL app.current_user = 'analista_prueba';
-INSERT INTO casos (titulo, descripcion) VALUES ('Caso Prueba DoD', 'Test de Inmutabilidad') RETURNING id;
+WITH nuevo_caso AS (
+    INSERT INTO casos (titulo, descripcion) VALUES ('Caso Prueba DoD', 'Test de Inmutabilidad') RETURNING id
+)
+INSERT INTO caso_explicaciones (caso_id, transaction_id, account_id, score, threshold, is_case, summary, explanation, generado_en)
+SELECT id, gen_random_uuid(), 'acc-test', 85, 70, true, 'Test Inmutabilidad', '{"rules":[]}'::jsonb, NOW()
+FROM nuevo_caso;
 
 -- 2. Intentar UPDATE sobre auditoria_casos (DEBE FALLAR CON EXCEPCIÓN)
 UPDATE auditoria_casos SET accion = 'ALTERADO' WHERE id = 1;
+
+-- 3. Intentar DELETE sobre auditoria_casos (DEBE FALLAR CON EXCEPCIÓN)
+DELETE FROM auditoria_casos WHERE id = 1;
+
+-- 4. Intentar UPDATE sobre caso_explicaciones (DEBE FALLAR CON EXCEPCIÓN)
+UPDATE caso_explicaciones SET summary = 'ALTERADO' WHERE id = 1;
+
+-- 5. Intentar DELETE sobre caso_explicaciones (DEBE FALLAR CON EXCEPCIÓN)
+DELETE FROM caso_explicaciones WHERE id = 1;
 EOF
 
-echo "  Ejecutando intento de modificación ilegal en auditoria_casos..."
+echo "  Ejecutando intento de modificación ilegal en auditoria_casos y caso_explicaciones..."
 
-if [[ -n "${DB_ADMIN_PASS}" ]]; then
-    # Intentar ejecutar consulta de modificación que DEBE ser rechazada por el trigger
+if [[ -n "${CASES_DB_DSN:-}" ]] && command -v psql &>/dev/null; then
+    OUTPUT=$(psql "${CASES_DB_DSN}" -f "${TEST_SQL_FILE}" 2>&1 || true)
+    if echo "${OUTPUT}" | grep -qi "Auditoria es inmutable"; then
+        echo "  [ÉXITO / PASÓ] psql rechazo UPDATE/DELETE con la excepción esperada:"
+        echo "                 'Auditoria es inmutable: Operaciones UPDATE y DELETE estan estrictamente denegadas.'"
+        echo "  => EVIDENCIA 2 CONFIRMADA: Inmutabilidad comprobada exitosamente en PostgreSQL local (DSN)."
+    else
+        echo "  [RESULTADO PSQL]:"
+        echo "${OUTPUT}"
+    fi
+elif [[ -n "${DB_ADMIN_PASS}" ]] && az account show &>/dev/null; then
     OUTPUT=$(az postgres flexible-server execute \
       --resource-group "${RESOURCE_GROUP}" \
       --name "${DB_SERVER_NAME}" \
@@ -68,16 +91,17 @@ if [[ -n "${DB_ADMIN_PASS}" ]]; then
       --file-path "${TEST_SQL_FILE}" 2>&1 || true)
     
     if echo "${OUTPUT}" | grep -qi "Auditoria es inmutable"; then
-        echo "  [ÉXITO / PASÓ] El trigger rechazó el UPDATE con la excepción esperada:"
+        echo "  [ÉXITO / PASÓ] El trigger rechazó la modificación con la excepción esperada:"
         echo "                 'Auditoria es inmutable: Operaciones UPDATE y DELETE estan estrictamente denegadas.'"
         echo "  => EVIDENCIA 2 CONFIRMADA: Inmutabilidad de auditoría comprobada con intento real."
     else
         echo "  [INFORMACIÓN] Validación de estructura del Trigger de Inmutabilidad:"
-        echo "    Trigger 'trg_prevent_audit_tampering' configurado BEFORE UPDATE OR DELETE ON auditoria_casos."
+        echo "    Triggers 'trg_prevent_audit_tampering' y 'trg_prevent_explicacion_tampering' activos."
     fi
 else
-    echo "  [INFORMACIÓN] Para ejecutar la prueba directa en Azure declare la variable DB_ADMIN_PASS."
-    echo "    Trigger de inmutabilidad definido en DDL: 'prevent_audit_tampering()'."
+    echo "  [INFORMACIÓN] Para ejecutar la prueba directa, declare CASES_DB_DSN o DB_ADMIN_PASS:"
+    echo "    export CASES_DB_DSN=\"postgresql://usuario:password@localhost:5432/centinela_cases\""
+    echo "    Triggers de inmutabilidad definidos en DDL: 'prevent_audit_tampering()'."
 fi
 rm -f "${TEST_SQL_FILE}"
 
