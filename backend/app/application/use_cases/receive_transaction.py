@@ -21,14 +21,14 @@ from app.domain.repositories.transaction_repository import TransactionRepository
 class ReceiveTransactionUseCase:
     """Recibe una transacción, la persiste y publica el evento de scoring.
 
-    Secuencia (semana 2):
+    Secuencia:
     1. Validar contrato
-    2. Persistir
+    2. Persistir (Cosmos por cuenta cuando está configurado → alimenta historial)
     3. Publicar evento en la cola de transacciones
     4. Responder acuse (202)
 
     El motor de scoring NO se invoca aquí: reacciona al evento de forma
-    asíncrona. La publicación solo espera a que la cola acepte el mensaje.
+    asíncrona y lee el historial de la cuenta desde Cosmos.
     """
 
     def __init__(
