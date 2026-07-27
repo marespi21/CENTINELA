@@ -23,12 +23,22 @@ def _azure_configured() -> bool:
 
 @lru_cache(maxsize=1)
 def get_transaction_repository() -> TransactionRepository:
-    """Punto de composición de persistencia.
+    """Punto de composición de persistencia (módulo Camila — historial real).
 
-    Hoy: memoria.
-    Después: otro integrante cambia solo esta función por Azure/Cosmos
-    sin tocar routes ni use cases.
+    - Con COSMOS_ENDPOINT -> Cosmos DB (pk /accountId) para alimentar el historial.
+    - Sin configuración -> memoria (dev/test).
     """
+    if settings.cosmos_configured:
+        from app.infrastructure.azure.cosmos_transaction_repository import (
+            CosmosTransactionRepository,
+        )
+
+        return CosmosTransactionRepository(
+            endpoint=settings.cosmos_endpoint,
+            database=settings.cosmos_database,
+            container=settings.cosmos_container,
+            key=settings.cosmos_key or None,
+        )
     return InMemoryTransactionRepository()
 
 

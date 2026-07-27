@@ -135,6 +135,17 @@ El script [`scripts/cosmos_partition_demo.py`](../scripts/cosmos_partition_demo.
 imprime las RU (`x-ms-request-charge`) de la consulta de historial **con** y
 **sin** clave de partición, evidenciando que la dirigida toca una sola partición.
 
+## Escritura desde la API (historial real — módulo Camila)
+
+Al ingresar una transacción, la API la persiste en el mismo contenedor
+(`docType: "transaction"`, pk `/accountId`) vía
+[`CosmosTransactionRepository`](../backend/app/infrastructure/azure/cosmos_transaction_repository.py).
+Así el motor puede leer historial real por cuenta (velocidad, montos atípicos)
+en lugar de solo casos aislados. Composition root:
+`presentation/api/dependencies/transactions.py` (activa con `COSMOS_ENDPOINT`).
+
+Evidencia: `tests/unit/test_cosmos_history_fraud.py`.
+
 ## Definition of Done — mapeo de entregables
 
 | Criterio (DoD) | Evidencia |
