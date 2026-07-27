@@ -94,15 +94,35 @@ Ver decisión completa en [`decisions.md`](./decisions.md) (ADR-012).
 disponibilidad del servicio de crédito ante saturación —permite el uso normal de
 un cliente y corta ráfagas anómalas—, ajustable por app setting sin redeploy.
 
+El origen se toma de `X-Forwarded-For` (primer valor, el cliente real) detrás de
+App Service/Front Door, con *fallback* al peer directo — así el límite es por
+cliente, no por el proxy.
+
 **Limitaciones conocidas:** estado en memoria por instancia/worker (el límite se
-multiplica con scale-out; un límite global requeriría Redis); detrás de un
-proxy/Front Door conviene usar `X-Forwarded-For` como origen. Ver
+multiplica con scale-out; un límite global requeriría Redis). Ver
 [`decisions.md`](./decisions.md) (ADR-013).
+
+## Revisión de casos y acceso a documentos (Semana 3)
+
+- **Endpoints de casos protegidos por rol.** `GET /cases/{caseId}` y
+  `GET /cases/{caseId}/documents/{blobName}` exigen rol **Analista, Auditor o
+  Administrador** (`require_roles`): 401 sin clave, 403 con rol no autorizado.
+- **Acceso temporal a documentos (SAS).** El analista no toca el contenedor: el
+  endpoint devuelve una **URL de solo lectura con expiración** generada por
+  [`AzureBlobSasProvider`](../backend/app/infrastructure/azure/blob_sas_provider.py)
+  mediante **SAS de user delegation** (firmada por Managed Identity, sin clave de
+  cuenta). El contenedor permanece privado.
+- **API keys cacheadas.** `get_auth_policy` resuelve las claves de Key Vault una
+  vez por proceso (no una llamada por request), evitando latencia y throttling.
 
 ## Pruebas
 
 [`tests/integration/test_authorization.py`](../backend/tests/integration/test_authorization.py):
 401 sin clave, 403 rol incorrecto, 202 rol válido, y bypass con auth
 deshabilitada.
+[`tests/integration/test_cases_security.py`](../backend/tests/integration/test_cases_security.py):
+roles en la revisión de casos (401/403/200) y URL temporal de documentos.
+[`tests/unit/test_rate_limit_xff.py`](../backend/tests/unit/test_rate_limit_xff.py):
+conteo por origen real vía `X-Forwarded-For`.
 [`tests/unit/test_rate_limit.py`](../backend/tests/unit/test_rate_limit.py):
 excede→429, reinicio tras la ventana, y deshabilitado.

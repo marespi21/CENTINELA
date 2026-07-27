@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from fastapi import Depends, Header
 
@@ -63,8 +64,14 @@ class AuthPolicy:
         return cls(enabled=settings.auth_enabled, keys=keys)
 
 
+@lru_cache(maxsize=1)
 def get_auth_policy() -> AuthPolicy:
-    """Composition root de autorización (override en tests)."""
+    """Composition root de autorización (override en tests).
+
+    Cacheado: las API keys se resuelven contra Key Vault UNA vez por proceso, no
+    en cada request (evita latencia y throttling del vault). Un cambio de claves
+    reinicia la función, que reconstruye la política. `cache_clear()` disponible.
+    """
     return AuthPolicy.from_settings(secret_provider=get_secret_provider())
 
 

@@ -27,11 +27,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # {ip: [timestamp, ...]}  — timestamps de requests en la ventana actual
         self._buckets: dict[str, list[float]] = defaultdict(list)
 
+    @staticmethod
+    def _client_ip(request: Request) -> str:
+        """IP de origen real. Detrás de App Service/Front Door la IP del cliente
+        viaja en `X-Forwarded-For` (primer valor); si no, la del peer directo."""
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+        return request.client.host if request.client else "unknown"
+
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         if not self._enabled:
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = self._client_ip(request)
         now = time.time()
         cutoff = now - self._window_seconds
 
