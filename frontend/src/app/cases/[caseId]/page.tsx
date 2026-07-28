@@ -4,10 +4,6 @@ interface CaseDetailPlaceholderProps {
   params: Promise<{ caseId: string }>;
 }
 
-/**
- * Placeholder del detalle (HU posteriores: explicación, documentos, acciones).
- * Cumple el criterio de navegación desde la bandeja.
- */
 export default async function CaseDetailPage({
   params,
 }: CaseDetailPlaceholderProps) {
@@ -17,32 +13,25 @@ export default async function CaseDetailPage({
     <div className="animate-fade-up space-y-6">
       <Link
         href="/cases"
-        className="inline-flex text-sm font-medium text-[var(--accent-ink)] hover:underline"
+        className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
       >
         ← Volver a la bandeja
       </Link>
 
       <header className="space-y-2">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">
-          Detalle
-        </p>
-        <h1 className="font-display text-3xl tracking-tight text-[var(--ink)]">
-          Caso {caseId}
+        <p className="text-sm font-medium text-[var(--accent)]">Detalle</p>
+        <h1 className="font-display text-4xl font-semibold text-[var(--ink)]">
+          Caso en revisión
         </h1>
-        <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-          La pantalla completa de detalle (explicación, documentos y acciones)
-          se entrega en las historias siguientes. El BFF{" "}
-          <code className="font-mono text-[13px]">/api/cases/{caseId}</code> ya
-          está listo para consumir{" "}
-          <code className="font-mono text-[13px]">CaseDetailDto</code>.
+        <p className="max-w-2xl text-[15px] text-[var(--muted)]">
+          La vista completa llega en las siguientes historias. El BFF de detalle
+          ya está listo.
         </p>
       </header>
 
       <section className="panel p-6">
-        <p className="text-sm text-[var(--muted)]">
-          Identificador:{" "}
-          <span className="font-mono text-[var(--ink)]">{caseId}</span>
-        </p>
+        <p className="text-xs font-medium text-[var(--muted)]">Identificador</p>
+        <p className="mt-1 font-mono text-lg font-medium text-[var(--ink)]">{caseId}</p>
       </section>
     </div>
   );

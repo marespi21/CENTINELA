@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
-import { Fraunces, IBM_Plex_Mono, Source_Sans_3 } from "next/font/google";
+import { IBM_Plex_Mono, Outfit, Space_Grotesk } from "next/font/google";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { QueryProvider } from "@/lib/query/provider";
 
 import "./globals.css";
 
-const display = Fraunces({
+const display = Space_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
-const body = Source_Sans_3({
+const body = Outfit({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -28,8 +29,7 @@ export const metadata: Metadata = {
     default: "CENTINELA · Consola del analista",
     template: "%s · CENTINELA",
   },
-  description:
-    "Bandeja de casos de fraude: filtros, paginación y revisión para analistas.",
+  description: "Consola moderna de revisión de casos de fraude.",
 };
 
 export default function RootLayout({

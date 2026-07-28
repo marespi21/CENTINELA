@@ -28,9 +28,12 @@ export function DataTable<T>({
     <div className={cn("overflow-x-auto", className)}>
       <table className="w-full min-w-[720px] border-collapse text-left text-sm">
         <thead>
-          <tr className="border-b border-[var(--border)] text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+          <tr className="border-b border-[var(--border)] text-xs font-semibold text-[var(--muted)]">
             {columns.map((col) => (
-              <th key={col.key} className={cn("px-4 py-3 font-medium", col.className)}>
+              <th
+                key={col.key}
+                className={cn("px-4 py-3.5 first:pl-5 last:pr-5", col.className)}
+              >
                 {col.header}
               </th>
             ))}
@@ -42,12 +45,15 @@ export function DataTable<T>({
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={cn(
-                "border-b border-[var(--border)]/70 transition-colors duration-150",
-                onRowClick && "cursor-pointer hover:bg-[var(--surface-hover)]",
+                "border-b border-[var(--border)]/70 transition-colors duration-150 last:border-0",
+                onRowClick && "cursor-pointer hover:bg-[var(--accent-soft)]",
               )}
             >
               {columns.map((col) => (
-                <td key={col.key} className={cn("px-4 py-3.5 align-middle", col.className)}>
+                <td
+                  key={col.key}
+                  className={cn("px-4 py-4 align-middle first:pl-5 last:pr-5", col.className)}
+                >
                   {col.render(row)}
                 </td>
               ))}

@@ -16,16 +16,16 @@ export function ErrorState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 px-6 py-16 text-center",
+        "flex flex-col items-center justify-center gap-3 px-6 py-20 text-center",
         className,
       )}
       role="alert"
       data-testid="error-state"
     >
-      <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 ring-1 ring-rose-200">
-        <span className="font-mono text-sm text-rose-700">!</span>
+      <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-[var(--danger)]">
+        <span className="font-display text-xl font-semibold">!</span>
       </div>
-      <h3 className="font-display text-lg text-[var(--ink)]">{title}</h3>
+      <h3 className="font-display text-xl font-semibold text-[var(--ink)]">{title}</h3>
       <p className="max-w-md text-sm text-[var(--muted)]">{message}</p>
       {onRetry ? (
         <button type="button" onClick={onRetry} className="btn-primary mt-2">

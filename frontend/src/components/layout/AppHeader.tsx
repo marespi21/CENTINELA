@@ -2,41 +2,36 @@ import Link from "next/link";
 
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--border)]/80 bg-[var(--surface)]/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/cases" className="group flex items-center gap-3">
           <span
             aria-hidden
-            className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-[var(--ink)] shadow-sm transition-transform duration-300 group-hover:scale-[1.03]"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-bold text-white shadow-[0_8px_20px_rgba(37,99,235,0.35)] transition-transform duration-200 group-hover:scale-105"
           >
-            <span className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(45,212,191,0.45),transparent_55%)]" />
-            <span className="relative font-mono text-[11px] font-semibold tracking-widest text-teal-100">
-              CT
-            </span>
+            C
           </span>
-          <div className="leading-tight">
-            <p className="font-display text-lg tracking-tight text-[var(--ink)]">
-              CENTINELA
+          <div className="leading-none">
+            <p className="font-display text-[1.15rem] font-semibold text-[var(--ink)]">
+              Centinela
             </p>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
-              Consola del analista
+            <p className="mt-1 text-[11px] font-medium text-[var(--muted)]">
+              Fraud desk
             </p>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-1 text-sm">
+        <nav className="flex items-center gap-2">
           <Link
             href="/cases"
-            className="rounded-md px-3 py-1.5 font-medium text-[var(--ink)] transition-colors hover:bg-[var(--surface-muted)]"
+            className="rounded-full bg-[var(--accent-soft)] px-3.5 py-1.5 text-sm font-semibold text-[var(--accent-ink)]"
           >
             Casos
           </Link>
-          <span
-            className="hidden rounded-md px-3 py-1.5 text-[var(--muted)] sm:inline"
-            title="Autenticación de usuario fuera de alcance en esta historia"
-          >
-            Analista
-          </span>
+          <div className="hidden items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-1.5 sm:flex">
+            <span className="live-dot" />
+            <span className="text-xs font-medium text-[var(--muted)]">En línea</span>
+          </div>
         </nav>
       </div>
     </header>

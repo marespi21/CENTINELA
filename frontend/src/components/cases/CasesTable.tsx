@@ -12,6 +12,30 @@ interface CasesTableProps {
   items: CaseSummaryDto[];
 }
 
+function ScoreCell({ score }: { score: number }) {
+  const tone =
+    score >= 70
+      ? "text-[var(--danger)]"
+      : score >= 50
+        ? "text-[var(--warning)]"
+        : "text-[var(--success)]";
+  const bar =
+    score >= 70
+      ? "bg-[var(--danger)]"
+      : score >= 50
+        ? "bg-[var(--warning)]"
+        : "bg-[var(--success)]";
+
+  return (
+    <span className={`score-pill ${tone}`}>
+      <span className="font-mono text-sm font-semibold">{score}</span>
+      <span className="score-bar" aria-hidden>
+        <span style={{ width: `${Math.min(100, Math.max(8, score))}%` }} className={bar} />
+      </span>
+    </span>
+  );
+}
+
 export function CasesTable({ items }: CasesTableProps) {
   const router = useRouter();
 
@@ -22,7 +46,7 @@ export function CasesTable({ items }: CasesTableProps) {
       render: (row) => (
         <Link
           href={`/cases/${row.caseId}`}
-          className="font-mono text-[13px] font-medium text-[var(--accent-ink)] underline-offset-2 hover:underline"
+          className="font-mono text-[13px] font-semibold text-[var(--accent)] hover:underline"
           onClick={(e) => e.stopPropagation()}
         >
           {truncateId(row.caseId, 10)}
@@ -44,30 +68,20 @@ export function CasesTable({ items }: CasesTableProps) {
     {
       key: "score",
       header: "Score",
-      render: (row) => (
-        <span
-          className={
-            row.score >= 70
-              ? "font-mono text-sm font-semibold text-rose-700"
-              : "font-mono text-sm text-[var(--ink)]"
-          }
-        >
-          {row.score}
-        </span>
-      ),
+      render: (row) => <ScoreCell score={row.score} />,
     },
     {
       key: "openedAt",
       header: "Apertura",
       render: (row) => (
-        <span className="text-[var(--muted)]">{formatDateTime(row.openedAt)}</span>
+        <span className="text-[13px] text-[var(--muted)]">{formatDateTime(row.openedAt)}</span>
       ),
     },
     {
       key: "assignedTo",
       header: "Asignado",
       render: (row) => (
-        <span className="text-[var(--muted)]">{row.assignedTo ?? "—"}</span>
+        <span className="text-[13px] text-[var(--muted)]">{row.assignedTo ?? "—"}</span>
       ),
     },
     {
@@ -75,7 +89,7 @@ export function CasesTable({ items }: CasesTableProps) {
       header: "Resumen",
       className: "max-w-[18rem]",
       render: (row) => (
-        <span className="line-clamp-2 text-[var(--muted)]" title={row.summary}>
+        <span className="line-clamp-2 text-[13px] text-[var(--muted)]" title={row.summary}>
           {row.summary}
         </span>
       ),

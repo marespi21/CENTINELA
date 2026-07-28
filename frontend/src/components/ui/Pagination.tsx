@@ -37,10 +37,10 @@ export function Pagination({
         ) : (
           <>
             Mostrando{" "}
-            <span className="font-medium text-[var(--ink)]">
+            <span className="font-semibold text-[var(--ink)]">
               {from}–{to}
             </span>{" "}
-            de <span className="font-medium text-[var(--ink)]">{total}</span>
+            de <span className="font-semibold text-[var(--ink)]">{total}</span>
           </>
         )}
       </p>
@@ -54,7 +54,7 @@ export function Pagination({
         >
           Anterior
         </button>
-        <span className="min-w-[5.5rem] text-center font-mono text-xs text-[var(--muted)]">
+        <span className="min-w-[5rem] text-center font-mono text-xs text-[var(--muted)]">
           {page} / {totalPages}
         </span>
         <button
