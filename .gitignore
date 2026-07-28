@@ -41,3 +41,13 @@ credentials.json
 # Logs
 *.log
 logs/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+frontend/.env.local
+frontend/.env*.local
+!.env.example
+frontend/.turbo/
