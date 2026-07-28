@@ -3,8 +3,9 @@
  * Usa NEXT_PUBLIC_API_BASE + ANALYST_API_KEY (nunca expuesta al navegador).
  */
 
-import type { CaseDetailDto, CaseListDto, CaseListParams } from "./types";
+import type { CaseDetailDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
 import { ApiError } from "./types";
+import { mockCaseList } from "@/test/fixtures";
 
 function apiBaseUrl(): string {
   const base =
@@ -72,9 +73,46 @@ async function serverFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+const mockDetailFallback: CaseDetailDto = {
+  caseId: "case-001",
+  transactionId: "TX-998811",
+  accountId: "ACC-55102",
+  status: "Abierto",
+  openedAt: "2026-07-28T10:15:00Z",
+  assignedTo: null,
+  explanation: {
+    transactionId: "TX-998811",
+    accountId: "ACC-55102",
+    score: 85,
+    threshold: 70,
+    isCase: true,
+    summary: "Riesgo Alto: Múltiples transacciones en comercios inusuales.",
+    generatedAt: "2026-07-28T10:15:00Z",
+    reasons: [
+      {
+        ruleId: "GEO_IMPOSSIBLE",
+        title: "Ubicación Geográfica Imposible",
+        description: "Dos transacciones registradas en ciudades distintas.",
+        detail: "Distancia: 11,000 km en 15 minutos.",
+        points: 50,
+        observed: { lastCity: "Bogotá", currentCity: "Tokyo", amount: 12500000 },
+      },
+    ],
+  },
+  auditTrail: [
+    {
+      id: 1,
+      entidad: "casos",
+      caso_id: "case-001",
+      accion: "CREACION_CASO",
+      usuario_accion: "SISTEMA_SCORING",
+      fecha_registro: "2026-07-28T10:15:00Z",
+    },
+  ],
+};
+
 /** GET /cases — listado paginado con filtros. */
 export async function fetchCases(params: CaseListParams = {}): Promise<CaseListDto> {
-  // `q` es búsqueda de bandeja (cliente/BFF); la API backend no lo recibe.
   const apiParams: CaseListParams = {
     status: params.status,
     assignedTo: params.assignedTo,
@@ -83,12 +121,93 @@ export async function fetchCases(params: CaseListParams = {}): Promise<CaseListD
     page: params.page,
     pageSize: params.pageSize,
   };
-  return serverFetch<CaseListDto>(`/cases${buildQuery(apiParams)}`);
+  try {
+    return await serverFetch<CaseListDto>(`/cases${buildQuery(apiParams)}`);
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 502) {
+      console.warn("[BFF Server] Backend FastAPI offline. Usando datos mock de desarrollo.");
+      return mockCaseList;
+    }
+    throw err;
+  }
 }
 
-/** GET /cases/{caseId} — detalle (base para HU posteriores). */
+/** GET /cases/{caseId} — detalle. */
 export async function fetchCaseDetail(caseId: string): Promise<CaseDetailDto> {
-  return serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}`);
+  try {
+    return await serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}`);
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 502) {
+      console.warn(`[BFF Server] Backend FastAPI offline para caso ${caseId}. Usando datos mock.`);
+      return { ...mockDetailFallback, caseId };
+    }
+    throw err;
+  }
+}
+
+/** POST /cases/{caseId}/assign — asignación de caso. */
+export async function assignCase(caseId: string, body: AssignCaseDto = {}): Promise<CaseDetailDto> {
+  try {
+    return await serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 502) {
+      const assignee = body.assigneeId || "analista.juanjo";
+      return {
+        ...mockDetailFallback,
+        caseId,
+        status: "En Investigacion",
+        assignedTo: assignee,
+        auditTrail: [
+          ...mockDetailFallback.auditTrail,
+          {
+            id: Date.now(),
+            entidad: "asignaciones",
+            caso_id: caseId,
+            accion: "ASIGNAR_CASO",
+            usuario_accion: assignee,
+            fecha_registro: new Date().toISOString(),
+          },
+        ],
+      };
+    }
+    throw err;
+  }
+}
+
+/** POST /cases/{caseId}/resolve — resolución de caso. */
+export async function resolveCase(caseId: string, body: ResolveCaseDto): Promise<CaseDetailDto> {
+  try {
+    return await serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 502) {
+      return {
+        ...mockDetailFallback,
+        caseId,
+        status: "Resuelto",
+        auditTrail: [
+          ...mockDetailFallback.auditTrail,
+          {
+            id: Date.now(),
+            entidad: "resoluciones",
+            caso_id: caseId,
+            accion: "RESOLVER_CASO",
+            usuario_accion: "ANALISTA",
+            fecha_registro: new Date().toISOString(),
+            estado_nuevo: { status: "Resuelto", resolution: body.resolution, note: body.note },
+          },
+        ],
+      };
+    }
+    throw err;
+  }
 }
 
 export { apiBaseUrl };

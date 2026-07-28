@@ -14,3 +14,16 @@ export function truncateId(value: string, head = 8): string {
   if (value.length <= head + 4) return value;
   return `${value.slice(0, head)}…`;
 }
+
+export function formatCurrency(amount: number, currency: string = "USD"): string {
+  try {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `$${amount.toLocaleString()}`;
+  }
+}
+

@@ -89,3 +89,13 @@ export class ApiError extends Error {
     this.code = code;
   }
 }
+
+export interface AssignCaseDto {
+  assigneeId?: string;
+}
+
+export interface ResolveCaseDto {
+  resolution: string;
+  note?: string;
+}
+
