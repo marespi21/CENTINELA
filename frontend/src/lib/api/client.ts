@@ -3,7 +3,7 @@
  * Solo habla con los route handlers de Next (/api/*); nunca conoce la API key.
  */
 
-import type { CaseDetailDto, CaseListDto, CaseListParams } from "./types";
+import type { CaseDetailDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
 import { ApiError } from "./types";
 
 function buildQuery(params: CaseListParams): string {
@@ -49,6 +49,24 @@ export async function listCases(params: CaseListParams = {}): Promise<CaseListDt
 /** Detalle de caso vía BFF. */
 export async function getCase(caseId: string): Promise<CaseDetailDto> {
   return bffFetch<CaseDetailDto>(`/api/cases/${encodeURIComponent(caseId)}`);
+}
+
+/** Asignar caso vía BFF: POST /api/cases/{caseId}/assign. */
+export async function assignCase(caseId: string, body: AssignCaseDto = {}): Promise<CaseDetailDto> {
+  return bffFetch<CaseDetailDto>(`/api/cases/${encodeURIComponent(caseId)}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Resolver caso vía BFF: POST /api/cases/{caseId}/resolve. */
+export async function resolveCase(caseId: string, body: ResolveCaseDto): Promise<CaseDetailDto> {
+  return bffFetch<CaseDetailDto>(`/api/cases/${encodeURIComponent(caseId)}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 /** Filtra filas por id de caso o cuenta (búsqueda de bandeja). */

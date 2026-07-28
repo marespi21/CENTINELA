@@ -3,7 +3,7 @@
  * Usa NEXT_PUBLIC_API_BASE + ANALYST_API_KEY (nunca expuesta al navegador).
  */
 
-import type { CaseDetailDto, CaseListDto, CaseListParams } from "./types";
+import type { CaseDetailDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
 import { ApiError } from "./types";
 
 function apiBaseUrl(): string {
@@ -91,4 +91,23 @@ export async function fetchCaseDetail(caseId: string): Promise<CaseDetailDto> {
   return serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}`);
 }
 
+/** POST /cases/{caseId}/assign — asignación de caso. */
+export async function assignCase(caseId: string, body: AssignCaseDto = {}): Promise<CaseDetailDto> {
+  return serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** POST /cases/{caseId}/resolve — resolución de caso. */
+export async function resolveCase(caseId: string, body: ResolveCaseDto): Promise<CaseDetailDto> {
+  return serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export { apiBaseUrl };
+
