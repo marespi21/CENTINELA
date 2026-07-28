@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.domain.exceptions.auth_exceptions import (
@@ -33,6 +34,17 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(RateLimitMiddleware, settings=settings)
+
+    # CORS para la consola web (Semana 5): solo el origen de la consola.
+    # Se añade al final para que quede como capa externa y responda también el
+    # preflight (OPTIONS) antes del rate limiting.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins_list,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["X-API-Key", "Content-Type"],
+    )
 
     @app.get("/")
     def root() -> dict[str, str]:
