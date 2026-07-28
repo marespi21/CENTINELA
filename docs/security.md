@@ -115,6 +115,35 @@ multiplica con scale-out; un límite global requeriría Redis). Ver
 - **API keys cacheadas.** `get_auth_policy` resuelve las claves de Key Vault una
   vez por proceso (no una llamada por request), evitando latencia y throttling.
 
+## Despliegue seguro de secretos (Semana 4)
+
+Objetivo: montar el entorno **sin permisos manuales** y con **ningún secreto en
+claro**. Todo vive en [`infra/security.sh`](../infra/security.sh), re-ejecutable.
+
+- **Key Vault idempotente.** El script se reejecuta sin error: si el vault ya
+  existe, se reutiliza (`az keyvault show`), en vez de fallar al recrearlo.
+- **Permiso del desplegador automático.** En un vault con RBAC, crear el vault no
+  da acceso de datos. El script asigna **`Key Vault Secrets Officer`** al usuario
+  actual (`az ad signed-in-user`) para poder escribir secretos — sin el paso
+  manual que antes bloqueaba el despliegue.
+- **Secretos desde el entorno, nunca en git.** Los valores se toman de variables
+  de entorno y se guardan en Key Vault:
+
+  | Secreto (KV) | Variable de entorno | Uso |
+  |--------------|---------------------|-----|
+  | `api-keys` | `API_KEYS` | claves clave→rol de la API |
+  | `cosmos-db-key` | `COSMOS_KEY` | clave de Cosmos DB |
+  | `cases-db-dsn` | `CASES_DB_DSN` | cadena de conexión a PostgreSQL |
+  | `db-admin-password` | `DB_ADMIN_PASS` | password del admin de PostgreSQL |
+
+- **Consumo por referencia (no en claro).** Los app settings de la Web App
+  apuntan a los secretos con `@Microsoft.KeyVault(VaultName=…;SecretName=…)`; la
+  Managed Identity (rol `Key Vault Secrets User`) los resuelve en runtime. El
+  valor nunca aparece en la configuración ni en el repo.
+- **Verificación:** [`infra/verify_secrets.sh`](../infra/verify_secrets.sh)
+  comprueba que los secretos existan en el vault, que los app settings sean
+  referencias (no texto plano) y que no haya secretos hardcodeados en el repo.
+
 ## Pruebas
 
 [`tests/integration/test_authorization.py`](../backend/tests/integration/test_authorization.py):
