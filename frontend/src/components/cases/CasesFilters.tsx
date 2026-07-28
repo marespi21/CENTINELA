@@ -8,8 +8,9 @@ import type { CaseListParams } from "@/lib/api/types";
 const STATUS_OPTIONS = [
   { value: "", label: "Todos los estados" },
   { value: "Abierto", label: "Abierto" },
-  { value: "Asignado", label: "Asignado" },
+  { value: "En Investigacion", label: "En Investigación" },
   { value: "Resuelto", label: "Resuelto" },
+  { value: "Cerrado", label: "Cerrado" },
 ] as const;
 
 interface CasesFiltersProps {

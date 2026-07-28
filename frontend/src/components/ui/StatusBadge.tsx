@@ -3,8 +3,9 @@ import type { CaseStatus } from "@/lib/api/types";
 
 const STATUS_STYLES: Record<string, string> = {
   Abierto: "bg-amber-50 text-amber-700",
-  Asignado: "bg-sky-50 text-sky-700",
+  "En Investigacion": "bg-sky-50 text-sky-700",
   Resuelto: "bg-emerald-50 text-emerald-700",
+  Cerrado: "bg-slate-100 text-slate-600",
 };
 
 interface StatusBadgeProps {

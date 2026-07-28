@@ -4,7 +4,12 @@
  * No duplicar formas aparte de estos tipos.
  */
 
-export type CaseStatus = "Abierto" | "Asignado" | "Resuelto" | string;
+export type CaseStatus =
+  | "Abierto"
+  | "En Investigacion"
+  | "Resuelto"
+  | "Cerrado"
+  | string;
 
 /** Motivo de la explicación (ExplanationReasonSchema). */
 export interface ExplanationReasonDto {
