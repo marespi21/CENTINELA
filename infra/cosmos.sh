@@ -22,12 +22,12 @@ source "${SCRIPT_DIR}/variables.sh"
 echo "==> Registrando provider Microsoft.DocumentDB (idempotente)..."
 az provider register --namespace Microsoft.DocumentDB --wait --output none
 
-echo "==> [Cosmos 1/3] Cuenta '${COSMOS_ACCOUNT}' (free tier, consistencia ${COSMOS_CONSISTENCY})..."
+echo "==> [Cosmos 1/3] Cuenta '${COSMOS_ACCOUNT}' (free tier, consistencia ${COSMOS_CONSISTENCY}, región ${COSMOS_LOCATION})..."
 az cosmosdb create \
   --name "${COSMOS_ACCOUNT}" \
   --resource-group "${RESOURCE_GROUP}" \
   --kind GlobalDocumentDB \
-  --locations regionName="${LOCATION}" failoverPriority=0 isZoneRedundant=False \
+  --locations regionName="${COSMOS_LOCATION}" failoverPriority=0 isZoneRedundant=False \
   --default-consistency-level "${COSMOS_CONSISTENCY}" \
   --enable-free-tier true \
   --output none \
