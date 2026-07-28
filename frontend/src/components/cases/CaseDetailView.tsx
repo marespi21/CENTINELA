@@ -67,7 +67,7 @@ export function CaseDetailView({ caseId, initialData }: CaseDetailViewProps) {
   }
 
   if (isError) {
-    const status = (error as any)?.status;
+    const status = (error as { status?: number })?.status;
     if (status === 404) {
       return <NotFoundState caseId={caseId} />;
     }

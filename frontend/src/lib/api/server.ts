@@ -5,7 +5,7 @@
 
 import type { CaseDetailDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
 import { ApiError } from "./types";
-import { mockCaseList, mockCase } from "@/test/fixtures";
+import { mockCaseList } from "@/test/fixtures";
 
 function apiBaseUrl(): string {
   const base =
@@ -123,7 +123,7 @@ export async function fetchCases(params: CaseListParams = {}): Promise<CaseListD
   };
   try {
     return await serverFetch<CaseListDto>(`/cases${buildQuery(apiParams)}`);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof ApiError && err.status === 502) {
       console.warn("[BFF Server] Backend FastAPI offline. Usando datos mock de desarrollo.");
       return mockCaseList;
@@ -136,7 +136,7 @@ export async function fetchCases(params: CaseListParams = {}): Promise<CaseListD
 export async function fetchCaseDetail(caseId: string): Promise<CaseDetailDto> {
   try {
     return await serverFetch<CaseDetailDto>(`/cases/${encodeURIComponent(caseId)}`);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof ApiError && err.status === 502) {
       console.warn(`[BFF Server] Backend FastAPI offline para caso ${caseId}. Usando datos mock.`);
       return { ...mockDetailFallback, caseId };
@@ -153,7 +153,7 @@ export async function assignCase(caseId: string, body: AssignCaseDto = {}): Prom
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof ApiError && err.status === 502) {
       const assignee = body.assigneeId || "analista.juanjo";
       return {
@@ -186,7 +186,7 @@ export async function resolveCase(caseId: string, body: ResolveCaseDto): Promise
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof ApiError && err.status === 502) {
       return {
         ...mockDetailFallback,

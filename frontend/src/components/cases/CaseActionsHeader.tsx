@@ -40,10 +40,10 @@ export function CaseActionsHeader({
       setFeedback(null);
       await onAssign();
       setFeedback({ type: 'success', message: '¡Caso asignado con éxito!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFeedback({
         type: 'error',
-        message: err.message || 'Ocurrió un error al intentar asignar el caso.',
+        message: err instanceof Error ? err.message : 'Ocurrió un error al procesar la solicitud.',
       });
     }
   };
@@ -57,10 +57,10 @@ export function CaseActionsHeader({
       await onResolve(resolution, note);
       setShowResolveModal(false);
       setFeedback({ type: 'success', message: '¡Caso resuelto con éxito!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFeedback({
         type: 'error',
-        message: err.message || 'Ocurrió un error al resolver el caso.',
+        message: err instanceof Error ? err.message : 'Ocurrió un error al resolver el caso.',
       });
     }
   };
