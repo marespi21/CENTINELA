@@ -49,6 +49,12 @@ class Settings:
     api_keys: str = os.getenv("API_KEYS", "")
     key_vault_url: str = os.getenv("KEY_VAULT_URL", "")
 
+    # CORS: orígenes permitidos para la consola web (Semana 5). Coma-separado.
+    # Solo se habilita el origen de la consola; el resto queda rechazado.
+    cors_allowed_origins: str = os.getenv(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:3000"
+    )
+
     # Rate limiting por IP (en memoria, sin Redis)
     rate_limit_enabled: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
     rate_limit_max_requests: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "10"))
@@ -94,6 +100,10 @@ class Settings:
             for item in self.allowed_document_types.split(",")
             if item.strip()
         )
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 
     @property
     def blob_endpoint(self) -> str:

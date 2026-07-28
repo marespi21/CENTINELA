@@ -211,3 +211,23 @@ CREATE TRIGGER trg_prevent_explicacion_tampering
 BEFORE UPDATE OR DELETE ON caso_explicaciones
 FOR EACH ROW
 EXECUTE FUNCTION prevent_audit_tampering();
+
+-- =============================================================================
+-- Semana 5 (módulo Jorge): índice de documentos por caso para la consola
+-- =============================================================================
+
+-- 7. Tabla: caso_documentos
+-- Vincula un caso con los blobs de sus documentos de verificación, para que la
+-- consola pueda LISTARLOS. El acceso al contenido sigue siendo por SAS temporal;
+-- aquí solo se guarda la referencia (nunca el contenido del documento).
+CREATE TABLE IF NOT EXISTS caso_documentos (
+    id BIGSERIAL PRIMARY KEY,
+    caso_id UUID NOT NULL REFERENCES casos(id) ON DELETE CASCADE,
+    blob_name VARCHAR(255) NOT NULL,
+    filename VARCHAR(255),
+    content_type VARCHAR(100),
+    subido_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (caso_id, blob_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_caso_documentos_caso ON caso_documentos (caso_id);

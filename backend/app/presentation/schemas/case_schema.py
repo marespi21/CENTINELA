@@ -47,7 +47,76 @@ class CaseDetailResponse(BaseModel):
     account_id: str = Field(alias="accountId", serialization_alias="accountId")
     status: str
     opened_at: datetime = Field(alias="openedAt", serialization_alias="openedAt")
+    assigned_to: str | None = Field(
+        default=None, alias="assignedTo", serialization_alias="assignedTo"
+    )
     explanation: ExplanationSchema
     audit_trail: list[dict[str, Any]] = Field(
         default_factory=list, alias="auditTrail", serialization_alias="auditTrail"
     )
+
+
+class CaseSummaryResponse(BaseModel):
+    """Fila de la bandeja de casos (GET /cases)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    case_id: str = Field(alias="caseId", serialization_alias="caseId")
+    transaction_id: str = Field(alias="transactionId", serialization_alias="transactionId")
+    account_id: str = Field(alias="accountId", serialization_alias="accountId")
+    status: str
+    opened_at: datetime = Field(alias="openedAt", serialization_alias="openedAt")
+    score: int
+    is_case: bool = Field(alias="isCase", serialization_alias="isCase")
+    summary: str
+    assigned_to: str | None = Field(
+        default=None, alias="assignedTo", serialization_alias="assignedTo"
+    )
+
+
+class CaseListResponse(BaseModel):
+    """Respuesta paginada de GET /cases."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[CaseSummaryResponse] = Field(default_factory=list)
+    total: int
+    page: int
+    page_size: int = Field(alias="pageSize", serialization_alias="pageSize")
+
+
+class CaseDocumentResponse(BaseModel):
+    """Documento de un caso con su URL temporal (SAS) para abrirlo."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    blob_name: str = Field(alias="blobName", serialization_alias="blobName")
+    filename: str
+    content_type: str = Field(alias="contentType", serialization_alias="contentType")
+    url: str
+    expires_at: datetime = Field(alias="expiresAt", serialization_alias="expiresAt")
+
+
+class CaseDocumentListResponse(BaseModel):
+    """Respuesta de GET /cases/{caseId}/documents."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[CaseDocumentResponse] = Field(default_factory=list)
+
+
+class AssignCaseRequest(BaseModel):
+    """Cuerpo de POST /cases/{caseId}/assign."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    assignee_id: str | None = Field(default=None, alias="assigneeId")
+
+
+class ResolveCaseRequest(BaseModel):
+    """Cuerpo de POST /cases/{caseId}/resolve."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    resolution: str = Field(min_length=1)
+    note: str | None = None
