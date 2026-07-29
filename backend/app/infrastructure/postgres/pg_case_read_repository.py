@@ -87,11 +87,14 @@ LEFT JOIN LATERAL (
 ) a ON TRUE
 """
 
+# Los parámetros se castean (::text / ::timestamptz) para que PostgreSQL infiera
+# el tipo cuando el filtro es NULL; sin el cast lanza "could not determine data
+# type of parameter" en la comparación `%(param)s IS NULL`.
 _LIST_WHERE = """
-WHERE (%(status)s IS NULL OR e.nombre = %(status)s)
-  AND (%(assigned_to)s IS NULL OR a.usuario_id::text = %(assigned_to)s)
-  AND (%(date_from)s IS NULL OR c.creado_en >= %(date_from)s)
-  AND (%(date_to)s IS NULL OR c.creado_en <= %(date_to)s)
+WHERE (%(status)s::text IS NULL OR e.nombre = %(status)s::text)
+  AND (%(assigned_to)s::text IS NULL OR a.usuario_id::text = %(assigned_to)s::text)
+  AND (%(date_from)s::timestamptz IS NULL OR c.creado_en >= %(date_from)s::timestamptz)
+  AND (%(date_to)s::timestamptz IS NULL OR c.creado_en <= %(date_to)s::timestamptz)
 """
 
 
