@@ -58,6 +58,20 @@ export interface CaseDetailDto {
   auditTrail: Record<string, unknown>[];
 }
 
+/** Documento adjunto a un caso (CaseDocumentResponse). */
+export interface CaseDocumentDto {
+  blobName: string;
+  filename: string;
+  contentType: string;
+  url: string;
+  expiresAt: string;
+}
+
+/** Respuesta de GET /cases/{caseId}/documents. */
+export interface CaseDocumentListDto {
+  items: CaseDocumentDto[];
+}
+
 /** Respuesta paginada de GET /cases (CaseListResponse). */
 export interface CaseListDto {
   items: CaseSummaryDto[];

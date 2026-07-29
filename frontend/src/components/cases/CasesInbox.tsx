@@ -16,6 +16,19 @@ import { queryKeys } from "@/lib/query/keys";
 
 const DEFAULT_PAGE_SIZE = 20;
 
+function statusSummary(items: { status: string }[]) {
+  return items.reduce(
+    (summary, item) => {
+      const status = item.status.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+      if (status === "abierto") summary.open += 1;
+      if (status === "asignado" || status === "en investigacion") summary.inProgress += 1;
+      if (status === "resuelto") summary.resolved += 1;
+      return summary;
+    },
+    { open: 0, inProgress: 0, resolved: 0 },
+  );
+}
+
 export function CasesInbox() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,6 +49,8 @@ export function CasesInbox() {
     queryKey: queryKeys.cases.list(params),
     queryFn: () => listCases(params),
   });
+  // Resumen de la página visible, no del total del sistema.
+  const summary = statusSummary(query.data?.items ?? []);
 
   function onPageChange(page: number) {
     const next = new URLSearchParams(searchParams.toString());
@@ -71,6 +86,24 @@ export function CasesInbox() {
           </div>
         </div>
       </header>
+
+      <section aria-label="Resumen por estado" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[
+          ["Abiertos", summary.open],
+          ["En investigación", summary.inProgress],
+          ["Resueltos", summary.resolved],
+        ].map(([label, count]) => (
+          <div
+            key={String(label)}
+            className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm"
+          >
+            <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+            <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-[var(--ink)]">
+              {query.isLoading ? "—" : count}
+            </p>
+          </div>
+        ))}
+      </section>
 
       <CasesFilters initial={params} />
 

@@ -3,9 +3,9 @@
  * Usa NEXT_PUBLIC_API_BASE + ANALYST_API_KEY (nunca expuesta al navegador).
  */
 
-import type { CaseDetailDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
+import type { CaseDetailDto, CaseDocumentListDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
 import { ApiError } from "./types";
-import { mockCaseList } from "@/test/fixtures";
+import { mockCaseList, mockDocumentsFallback } from "@/test/fixtures";
 
 function apiBaseUrl(): string {
   const base =
@@ -140,6 +140,21 @@ export async function fetchCaseDetail(caseId: string): Promise<CaseDetailDto> {
     if (err instanceof ApiError && err.status === 502) {
       console.warn(`[BFF Server] Backend FastAPI offline para caso ${caseId}. Usando datos mock.`);
       return { ...mockDetailFallback, caseId };
+    }
+    throw err;
+  }
+}
+
+/** GET /cases/{caseId}/documents — documentos con URLs SAS temporales. */
+export async function fetchCaseDocuments(caseId: string): Promise<CaseDocumentListDto> {
+  try {
+    return await serverFetch<CaseDocumentListDto>(
+      `/cases/${encodeURIComponent(caseId)}/documents`,
+    );
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 502) {
+      console.warn(`[BFF Server] Backend FastAPI offline para documentos de ${caseId}. Usando datos mock.`);
+      return mockDocumentsFallback;
     }
     throw err;
   }

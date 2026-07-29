@@ -1,4 +1,4 @@
-import type { CaseListDto, CaseSummaryDto } from "@/lib/api/types";
+import type { CaseDocumentListDto, CaseListDto, CaseSummaryDto } from "@/lib/api/types";
 
 export const mockCase: CaseSummaryDto = {
   caseId: "case-001",
@@ -29,4 +29,16 @@ export const mockCaseList: CaseListDto = {
   total: 2,
   page: 1,
   pageSize: 20,
+};
+
+export const mockDocumentsFallback: CaseDocumentListDto = {
+  items: [
+    {
+      blobName: "cases/case-001/reporte-transaccion.pdf",
+      filename: "reporte-transaccion.pdf",
+      contentType: "application/pdf",
+      url: "https://example.invalid/case-001/reporte-transaccion.pdf?temporary-sas-token",
+      expiresAt: "2026-07-29T10:15:00Z",
+    },
+  ],
 };
