@@ -1,0 +1,21 @@
+# Todo lo que NO debe entrar al contexto de build.
+#
+# Doble propósito: reducir la imagen y garantizar que ningún secreto llegue a
+# una capa. `.env.local` está aquí explícitamente porque contiene
+# ANALYST_API_KEY: un `COPY . .` descuidado la empaquetaría dentro de la imagen.
+# La configuración llega en ejecución desde Container Apps, no en el build.
+
+.env.local
+.env*.local
+
+node_modules
+.next
+out
+coverage
+.turbo
+
+.git
+.gitignore
+.DS_Store
+README.md
+*.log

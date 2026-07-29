@@ -31,6 +31,9 @@ FUNCTION_APP=func-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
 QUEUE_NAME=transactions
 DOCUMENTS_QUEUE=documents
 CASES_QUEUE=cases
+# Enriquecimiento asíncrono de explicaciones (Sprint 6, Fase 4). El caso ya está
+# abierto cuando se publica aquí: nada de esto entra en el camino crítico.
+EXPLANATIONS_QUEUE=explanations
 BLOB_CONTAINER=documents
 
 # App Service SKU (F1 = Free; B1+ requiere cuota y es necesario para VNet integration)
@@ -70,6 +73,76 @@ COSMOS_TTL_SECONDS=7776000
 DB_SERVER=psql-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
 DB_NAME=centinela_cases
 DB_ADMIN_USER=centinela_admin
+
+# ---------------------------------------------------------------------------
+# Contenedores — Sprint 6, Fase 1 (módulo Andrés)
+# ---------------------------------------------------------------------------
+# Registro de imágenes. GHCR: privado y sin coste (free tier), frente a ACR que
+# no tiene capa gratuita. Parametrizado por si hay que migrar a ACR: basta
+# cambiar REGISTRY/REGISTRY_NAMESPACE y las credenciales de pull.
+REGISTRY="${REGISTRY:-ghcr.io}"
+REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-marespi21}"
+IMAGE_API="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-api"
+IMAGE_WORKER="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-worker"
+IMAGE_CONSOLE="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-console"
+# Etiqueta a desplegar. Un sha corto es inmutable; `latest` puede cambiar bajo
+# los pies de una revisión ya desplegada y romper la reproducibilidad.
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+
+# Azure Container Apps. Los entornos corren sobre AKS por debajo, así que
+# heredan sus problemas de capacidad: `eastus` devolvió AKSCapacityHeavyUsage
+# al crear el entorno (2026-07-29). Si vuelve a pasar, prueba otra región —
+# el workspace de Log Analytics puede quedarse donde está, no tienen por qué
+# coincidir.
+ACA_LOCATION="${ACA_LOCATION:-eastus2}"
+ACA_ENVIRONMENT=cae-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
+ACA_API=ca-${PROJECT}-api-${ENV}${SUFFIX:+-${SUFFIX}}
+ACA_WORKER=ca-${PROJECT}-worker-${ENV}${SUFFIX:+-${SUFFIX}}
+# Consola del analista (Next.js). Ingress publico; el BFF corre en servidor, asi
+# que la clave de analista NUNCA llega al navegador.
+ACA_CONSOLE=ca-${PROJECT}-console-${ENV}${SUFFIX:+-${SUFFIX}}
+LOG_WORKSPACE=log-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
+# Identidad gestionada de usuario: la comparten API y worker para leer Key
+# Vault, las colas y Cosmos SIN ninguna credencial en la imagen.
+ACA_IDENTITY=id-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
+
+# Recursos por réplica. 0.25 vCPU / 0.5 GiB es el mínimo de Container Apps y el
+# que más estira la cuota gratuita mensual.
+ACA_CPU="${ACA_CPU:-0.25}"
+ACA_MEMORY="${ACA_MEMORY:-0.5Gi}"
+# Escalado a cero por defecto: sin tráfico ni mensajes en cola, el gasto es 0.
+ACA_API_MIN_REPLICAS="${ACA_API_MIN_REPLICAS:-0}"
+ACA_API_MAX_REPLICAS="${ACA_API_MAX_REPLICAS:-3}"
+ACA_WORKER_MIN_REPLICAS="${ACA_WORKER_MIN_REPLICAS:-0}"
+ACA_WORKER_MAX_REPLICAS="${ACA_WORKER_MAX_REPLICAS:-3}"
+# Mensajes en cola por réplica antes de que KEDA añada otra.
+ACA_QUEUE_LENGTH="${ACA_QUEUE_LENGTH:-5}"
+
+# Verificación documental / OCR — Azure AI Document Intelligence (Sprint 6, Fase 2).
+# SKU F0 = capa gratuita (500 páginas/mes). Azure permite UNA sola instancia F0
+# de este tipo por suscripción, así que el nombre no lleva sufijo aleatorio.
+DOC_INTELLIGENCE=di-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
+DOC_INTELLIGENCE_SKU="${DOC_INTELLIGENCE_SKU:-F0}"
+# Región con disponibilidad de Document Intelligence.
+DOC_INTELLIGENCE_LOCATION="${DOC_INTELLIGENCE_LOCATION:-eastus}"
+# prebuilt-receipt cubre tickets y recibos; prebuilt-invoice, facturas.
+DOC_INTELLIGENCE_MODEL="${DOC_INTELLIGENCE_MODEL:-prebuilt-receipt}"
+
+# Nombres de los secretos ya existentes en Key Vault (los crea security.sh).
+KV_SECRET_API_KEYS=api-keys
+KV_SECRET_COSMOS_KEY=cosmos-db-key
+KV_SECRET_CASES_DSN=cases-db-dsn
+# Visibilidad del paquete en GHCR. Con el repositorio ya público, publicar las
+# imágenes como públicas no revela nada nuevo (mismo código, y la auditoría
+# confirma que no llevan secretos) y a cambio elimina el ÚNICO secreto de larga
+# duración del sistema: el token de pull. Container Apps hace pull anónimo.
+# Ponlo a "private" para volver al modelo con token.
+REGISTRY_VISIBILITY="${REGISTRY_VISIBILITY:-public}"
+# Solo se usa si REGISTRY_VISIBILITY=private. Se guarda en Key Vault; NUNCA en
+# el repo ni en el pipeline.
+KV_SECRET_GHCR_TOKEN=ghcr-pull-token
+# Clave que la consola usa desde su BFF para hablar con la API.
+KV_SECRET_ANALYST_KEY=analyst-api-key
 
 # Alias usados por scripts legacy / mensajes
 PROJECT_NAME="${PROJECT}"

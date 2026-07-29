@@ -7,6 +7,7 @@ from decimal import Decimal
 from dotenv import load_dotenv
 
 from app.domain.value_objects.scoring_config import ScoringConfig
+from app.domain.value_objects.verification_config import VerificationConfig
 
 load_dotenv()
 
@@ -36,6 +37,9 @@ class Settings:
     )
     # Cola durable de casos (scoring → gestión de casos).
     cases_queue: str = os.getenv("CASES_QUEUE", "cases")
+    # Cola de enriquecimiento de explicaciones (Sprint 6, Fase 4). El caso ya
+    # está abierto cuando se publica aquí: nada de esto retrasa la detección.
+    explanations_queue: str = os.getenv("EXPLANATIONS_QUEUE", "explanations")
     max_document_mb: int = int(os.getenv("MAX_DOCUMENT_MB", "5"))
     allowed_document_types: str = os.getenv(
         "ALLOWED_DOCUMENT_TYPES",
@@ -89,6 +93,24 @@ class Settings:
     # Sin CASES_DB_DSN se usa el adaptador en memoria (dev/test).
     cases_db_dsn: str = os.getenv("CASES_DB_DSN", "")
 
+    # Verificación documental / OCR (Sprint 6, Fase 2 — módulo Andrés).
+    # Sin DOC_INTELLIGENCE_ENDPOINT no se verifica nada: el worker registra el
+    # documento en el caso pero no lo contrasta (adaptador nulo).
+    doc_intelligence_endpoint: str = os.getenv("DOC_INTELLIGENCE_ENDPOINT", "")
+    doc_intelligence_key: str = os.getenv("DOC_INTELLIGENCE_KEY", "")  # vacío => MI
+    doc_intelligence_model: str = os.getenv(
+        "DOC_INTELLIGENCE_MODEL", "prebuilt-receipt"
+    )
+    # Umbrales del contraste comprobante ↔ transacción.
+    verify_amount_tolerance_ratio: str = os.getenv("VERIFY_AMOUNT_TOLERANCE_RATIO", "0.02")
+    verify_amount_tolerance_absolute: str = os.getenv(
+        "VERIFY_AMOUNT_TOLERANCE_ABSOLUTE", "1000"
+    )
+    verify_date_window_days: int = int(os.getenv("VERIFY_DATE_WINDOW_DAYS", "3"))
+    verify_min_field_confidence: float = float(
+        os.getenv("VERIFY_MIN_FIELD_CONFIDENCE", "0.60")
+    )
+
     @property
     def max_document_bytes(self) -> int:
         return self.max_document_mb * 1024 * 1024
@@ -126,6 +148,21 @@ class Settings:
     def cases_db_configured(self) -> bool:
         """True si la API de casos debe usar PostgreSQL (no memoria)."""
         return bool(self.cases_db_dsn)
+
+    @property
+    def doc_intelligence_configured(self) -> bool:
+        """True si hay servicio de OCR con el que verificar documentos."""
+        return bool(self.doc_intelligence_endpoint)
+
+    @property
+    def verification_config(self) -> VerificationConfig:
+        """Umbrales del verificador documental desde el entorno."""
+        return VerificationConfig(
+            amount_tolerance_ratio=Decimal(self.verify_amount_tolerance_ratio),
+            amount_tolerance_absolute=Decimal(self.verify_amount_tolerance_absolute),
+            date_window_days=self.verify_date_window_days,
+            min_field_confidence=self.verify_min_field_confidence,
+        )
 
     @property
     def scoring_config(self) -> ScoringConfig:

@@ -20,18 +20,31 @@ from app.domain.exceptions.transaction_exceptions import (
     InvalidTransactionError,
 )
 from app.infrastructure.config.settings import settings
+from app.infrastructure.observability.logging_setup import configure_logging
+from app.infrastructure.observability.telemetry import (
+    instrument_fastapi,
+    setup_telemetry,
+)
 from app.presentation.api.middlewares.rate_limit import RateLimitMiddleware
 from app.presentation.api.routes.cases import router as cases_router
 from app.presentation.api.routes.documents import router as documents_router
 from app.presentation.api.routes.transactions import router as transactions_router
 
+API_VERSION = "1.0.0"
+
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Centinela API",
-        version="1.0.0",
+        version=API_VERSION,
         description="API de ingesta de transacciones (Semana 1).",
     )
+
+    # Telemetría antes que nada: si hay colector OTLP configurado (Container
+    # Apps), instrumenta las rutas; sin él es un no-op y la app arranca igual.
+    configure_logging("centinela-api")
+    setup_telemetry("centinela-api", API_VERSION)
+    instrument_fastapi(app)
 
     app.add_middleware(RateLimitMiddleware, settings=settings)
 
@@ -51,6 +64,35 @@ def create_app() -> FastAPI:
         return {
             "status": "running",
             "service": "Centinela",
+        }
+
+    @app.get("/health", include_in_schema=False)
+    def health() -> dict[str, str]:
+        """Liveness probe del contenedor: el proceso responde.
+
+        No toca ninguna dependencia externa a propósito — si fallara por una
+        caída de Cosmos o PostgreSQL, Container Apps reiniciaría el contenedor
+        sin motivo. Exenta de rate limiting (ver RateLimitMiddleware).
+        """
+        return {"status": "ok", "service": "centinela-api", "version": API_VERSION}
+
+    @app.get("/health/ready", include_in_schema=False)
+    def readiness() -> dict[str, object]:
+        """Readiness probe: qué adaptadores reales quedaron cableados.
+
+        Solo lee configuración (sin llamadas de red): distingue un contenedor
+        realmente conectado a Azure de uno que cayó a los adaptadores en memoria
+        por faltarle una variable de entorno.
+        """
+        return {
+            "status": "ok",
+            "adapters": {
+                "cosmos": settings.cosmos_configured,
+                "casesDb": settings.cases_db_configured,
+                "queue": bool(
+                    settings.storage_connection_string or settings.storage_account
+                ),
+            },
         }
 
     @app.exception_handler(DuplicateTransactionError)

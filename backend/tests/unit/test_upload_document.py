@@ -97,3 +97,64 @@ def test_rejects_too_large_document() -> None:
         use_case.execute(
             UploadDocumentInput("big.pdf", "application/pdf", b"12345")
         )
+
+
+# --- Vinculación con el caso (Sprint 6, Fase 2) ------------------------------
+
+
+def test_el_evento_lleva_el_caso_cuando_se_indica() -> None:
+    """Contrato productor↔consumidor: sin `caseId` en el mensaje, el worker no
+    tiene contra qué contrastar el comprobante y la verificación no ocurre."""
+    use_case, _, queue = _make_use_case()
+
+    use_case.execute(
+        UploadDocumentInput(
+            filename="recibo.pdf",
+            content_type="application/pdf",
+            content=b"%PDF-1.4 contenido",
+            case_id="11111111-1111-1111-1111-111111111111",
+        )
+    )
+
+    body = json.loads(queue.receive_messages(max_messages=1)[0].content)
+    assert body["caseId"] == "11111111-1111-1111-1111-111111111111"
+
+
+def test_sin_caso_la_clave_no_viaja_en_el_evento() -> None:
+    """Se omite en vez de mandarse vacía: el consumidor distingue ausencia de
+    cadena vacía y evita gastar cuota de OCR sin nada que verificar."""
+    use_case, _, queue = _make_use_case()
+
+    use_case.execute(
+        UploadDocumentInput(
+            filename="recibo.pdf",
+            content_type="application/pdf",
+            content=b"%PDF-1.4 contenido",
+        )
+    )
+
+    body = json.loads(queue.receive_messages(max_messages=1)[0].content)
+    assert "caseId" not in body
+
+
+def test_el_evento_se_parsea_de_vuelta_al_dto_del_consumidor() -> None:
+    """Ida y vuelta: lo que publica la API es exactamente lo que lee el worker."""
+    from app.application.dtos.document_event import document_event_from_message
+
+    use_case, _, queue = _make_use_case()
+    result = use_case.execute(
+        UploadDocumentInput(
+            filename="recibo.pdf",
+            content_type="application/pdf",
+            content=b"%PDF-1.4 contenido",
+            case_id="caso-1",
+        )
+    )
+
+    event = document_event_from_message(
+        queue.receive_messages(max_messages=1)[0].content
+    )
+
+    assert event.blob_name == result.blob_name
+    assert event.case_id == "caso-1"
+    assert event.content_type == "application/pdf"

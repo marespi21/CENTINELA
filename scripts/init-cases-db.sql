@@ -232,3 +232,35 @@ CREATE TABLE IF NOT EXISTS caso_documentos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_caso_documentos_caso ON caso_documentos (caso_id);
+
+-- Verificación documental (Sprint 6, Fase 2). Se añade con ALTER en vez de
+-- meterlo en el CREATE de arriba para que el script siga siendo idempotente
+-- sobre una base ya desplegada: la tabla existe en producción y CREATE TABLE
+-- IF NOT EXISTS no la modificaría.
+--
+-- Nullable a propósito: un documento recién subido aún no está verificado, y
+-- los que se subieron antes de esta fase nunca lo estarán.
+ALTER TABLE caso_documentos
+    ADD COLUMN IF NOT EXISTS veredicto VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS verificacion_resumen TEXT,
+    ADD COLUMN IF NOT EXISTS verificacion_detalle JSONB,
+    ADD COLUMN IF NOT EXISTS verificado_en TIMESTAMP WITH TIME ZONE;
+
+-- Los veredictos posibles los define VerificationVerdict en el dominio. Se
+-- restringen también aquí para que un bug de la aplicación no ensucie la tabla
+-- con valores que la consola no sabría mostrar.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_caso_documentos_veredicto'
+    ) THEN
+        ALTER TABLE caso_documentos ADD CONSTRAINT chk_caso_documentos_veredicto
+            CHECK (veredicto IS NULL OR veredicto IN
+                   ('coincide', 'discrepa', 'insuficiente', 'ilegible'));
+    END IF;
+END $$;
+
+-- La bandeja querrá filtrar "casos con comprobante que discrepa": es la señal
+-- de fraude que esta fase aporta, así que se indexa solo esa condición.
+CREATE INDEX IF NOT EXISTS idx_caso_documentos_discrepa
+    ON caso_documentos (caso_id) WHERE veredicto = 'discrepa';

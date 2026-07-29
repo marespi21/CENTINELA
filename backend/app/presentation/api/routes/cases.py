@@ -204,6 +204,9 @@ async def list_case_documents(
                 content_type=doc.content_type,
                 url=access.url,
                 expires_at=access.expires_at,
+                verdict=doc.verdict,
+                verification_summary=doc.verification_summary,
+                verified_at=doc.verified_at,
             )
         )
     return CaseDocumentListResponse(items=items)

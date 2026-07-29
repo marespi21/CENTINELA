@@ -14,12 +14,21 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class CaseDocument:
-    """Referencia a un documento de verificación de un caso (sin su contenido)."""
+    """Referencia a un documento de verificación de un caso (sin su contenido).
+
+    Desde el Sprint 6 Fase 2 arrastra también el veredicto del contraste contra
+    la transacción. Son opcionales: un documento subido antes de que existiera
+    la verificación, o cuyo procesamiento aún no ha terminado, no tiene veredicto
+    y la consola debe poder mostrarlo igual.
+    """
 
     blob_name: str
     filename: str
     content_type: str
     uploaded_at: datetime
+    verdict: str | None = None
+    verification_summary: str | None = None
+    verified_at: datetime | None = None
 
 
 class CaseDocumentRepository(ABC):

@@ -1,0 +1,57 @@
+name: Rollback de Container Apps
+
+# Vuelta atrás manual, por si un problema se detecta después de que el
+# despliegue pasara la comprobación de salud (una regresión funcional que una
+# sonda HTTP no puede ver).
+#
+# El rollback automático ante un fallo de salud ya vive en deploy.yml; esto es
+# para lo que solo detecta una persona.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Entorno"
+        type: choice
+        options: ["dev", "prod"]
+        default: "dev"
+        required: true
+      image_tag:
+        description: "Etiqueta destino (vacío = la revisión inmediatamente anterior)"
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rollback:
+    name: Revertir
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autenticarse en Azure (OIDC, sin secretos)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Revertir
+        env:
+          SUFFIX: ${{ vars.AZURE_SUFFIX }}
+        run: bash infra/rollback.sh ${{ inputs.image_tag }}
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Rollback"
+            echo ""
+            echo "- Entorno: ${{ inputs.environment }}"
+            echo "- Destino: ${{ inputs.image_tag || 'revisión anterior' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

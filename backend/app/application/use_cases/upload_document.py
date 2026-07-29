@@ -50,19 +50,20 @@ class UploadDocumentUseCase:
         self._blob_storage.upload(blob_name, data.content, data.content_type)
 
         uploaded_at = datetime.now(timezone.utc)
-        self._queue.send_message(
-            json.dumps(
-                {
-                    "event": "document.uploaded",
-                    "documentId": str(document_id),
-                    "blobName": blob_name,
-                    "filename": data.filename,
-                    "contentType": data.content_type,
-                    "sizeBytes": len(data.content),
-                    "uploadedAt": uploaded_at.isoformat(),
-                }
-            )
-        )
+        event: dict[str, object] = {
+            "event": "document.uploaded",
+            "documentId": str(document_id),
+            "blobName": blob_name,
+            "filename": data.filename,
+            "contentType": data.content_type,
+            "sizeBytes": len(data.content),
+            "uploadedAt": uploaded_at.isoformat(),
+        }
+        # Solo viaja si hay caso: el consumidor distingue "sin caso" de
+        # "caso vacío" y no intenta verificar lo que no puede contrastar.
+        if data.case_id:
+            event["caseId"] = data.case_id
+        self._queue.send_message(json.dumps(event))
 
         return UploadDocumentOutput(document_id=document_id, blob_name=blob_name)
 

@@ -16,12 +16,20 @@ from app.domain.repositories.case_document_repository import (
 
 
 def build_case_document(row: tuple[Any, ...]) -> CaseDocument:
-    """Fila de `caso_documentos` → `CaseDocument` (función pura, testeable)."""
+    """Fila de `caso_documentos` → `CaseDocument` (función pura, testeable).
+
+    Las columnas de verificación (Sprint 6, Fase 2) son opcionales: las filas
+    escritas antes de que existiera la verificación traen NULL y deben seguir
+    listándose con normalidad.
+    """
     return CaseDocument(
         blob_name=str(row[0]),
         filename=str(row[1]) if row[1] else "",
         content_type=str(row[2]) if row[2] else "application/octet-stream",
         uploaded_at=row[3],
+        verdict=str(row[4]) if len(row) > 4 and row[4] else None,
+        verification_summary=str(row[5]) if len(row) > 5 and row[5] else None,
+        verified_at=row[6] if len(row) > 6 else None,
     )
 
 
@@ -35,7 +43,8 @@ class PgCaseDocumentRepository(CaseDocumentRepository):
         with psycopg.connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT blob_name, filename, content_type, subido_en
+                SELECT blob_name, filename, content_type, subido_en,
+                       veredicto, verificacion_resumen, verificado_en
                 FROM caso_documentos
                 WHERE caso_id = %s
                 ORDER BY subido_en DESC

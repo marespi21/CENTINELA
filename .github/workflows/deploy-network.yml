@@ -1,16 +1,48 @@
 name: deploy-network
+
+# ############################################################################
+# INACTIVO POR DECISIÓN DE PROYECTO (2026-07-29)
+#
+# Migrado de `secrets.AZURE_CREDENTIALS` a OIDC federado, pero se decidió NO
+# configurar la federación con Entra ID, así que este workflow no puede
+# autenticarse. Se conserva como referencia del modelo sin credenciales.
+#
+# Se quitó AZURE_CREDENTIALS a propósito y no se restaura: era un service
+# principal con clientSecret guardado en el repositorio, que no caduca solo,
+# tiene permisos sobre la suscripción y puede usar cualquiera con acceso de
+# escritura. Contradice la regla del sprint de cero credenciales en el pipeline;
+# volver a él para que este workflow arranque sería un mal negocio.
+#
+# **Mientras tanto la red se despliega A MANO**, igual que el resto:
+#     az login
+#     bash scripts/deploy-network.sh --resource-group NetworkWatcherRG \
+#          --location mexicocentral
+#
+# Para activarlo: bash infra/github-oidc.sh y crear las cuatro variables
+# AZURE_* en Settings → Variables.
+# ############################################################################
+
 on:
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: dev
     steps:
       - uses: actions/checkout@v4
-      - name: Azure Login
-        uses: azure/login@v1
+
+      - name: Azure Login (OIDC, sin secretos)
+        uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: Execute deploy script
         run: |
           bash scripts/deploy-network.sh --resource-group NetworkWatcherRG --location mexicocentral
