@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>CENTINELA — Guía de estudio por integrante</title>
+<title>CENTINELA — Guía de estudio y decisiones de arquitectura</title>
 <style>
   @page { size: A4; margin: 18mm 16mm; }
   * { box-sizing: border-box; }
@@ -49,9 +49,19 @@
 </head>
 <body>
 
-<h1>CENTINELA — Guía de estudio por integrante</h1>
-<p class="lead">Qué construyó cada uno, qué debe saber explicar y qué estudiar antes de la sustentación.</p>
+<h1>CENTINELA — Guía de estudio y decisiones</h1>
+<p class="lead">Qué construyó cada uno, qué tecnologías de Azure se eligieron y por qué, y qué estudiar antes de la sustentación.</p>
 <p class="meta">Sistema de detección de fraude en transacciones financieras · Azure · Sprints 1–6 · Documento generado el 29 de julio de 2026</p>
+
+<div class="caja">
+  <strong>Sobre dos módulos que cambiaron de manos</strong>
+  El diseño del almacén NoSQL y el control de costos los construyó
+  <b>Santiago (Chanti)</b>, y el almacenamiento de documentos lo construyó
+  <b>Samuel</b>. Ninguno de los dos sigue en el equipo, así que sus temas se han
+  repartido: NoSQL pasa a Camila, costos y región a Jorge, y almacenamiento de
+  documentos a Andrés. <b>Quien los asuma tiene que estudiarlos igual</b>, porque
+  en la sustentación no habrá nadie más que pueda responder por ellos.
+</div>
 
 <div class="caja aviso">
   <strong>Antes de usar este documento</strong>
@@ -168,6 +178,19 @@ veredictos: <code>coincide</code>, <code>discrepa</code>,
   cualquier comprobante legítimo.
 </div>
 
+<h4>Almacenamiento de documentos <span style="font-weight:400;color:#777">(heredado de Samuel)</span></h4>
+<p>Los comprobantes no van en la base de datos —los ficheros binarios la encarecen
+y la ralentizan—: van a <b>Blob Storage</b>, y en la base solo queda la
+referencia. Antes de aceptar un fichero se valida <b>tipo</b> (PDF, PNG, JPEG) y
+<b>tamaño</b> (5 MB); sin eso cualquiera podría subir un ejecutable o llenar el
+almacenamiento.</p>
+<p>El contenedor de blobs es <b>privado</b>. Para que el analista vea un documento
+se genera una <b>URL firmada que caduca</b> a los 5 minutos: si se filtrara, en
+minutos deja de servir. Es mucho mejor que hacer público el contenedor.</p>
+<p>Encaja directamente con el OCR: al subir un documento se publica un evento en
+la cola <code>documents</code>, y el worker lo recoge, lo descarga y lo analiza.
+El almacenamiento es <b>el punto de entrada</b> de esa cadena.</p>
+
 <h4>Trazado distribuido</h4>
 <p>El problema: la API abría una traza y el worker otra, sin relación. No se podía
 responder «¿por qué este caso tardó 4 minutos?». La solución: el identificador de
@@ -181,6 +204,7 @@ traza <b>viaja dentro del mensaje de la cola</b>, así que un solo
   <li><code>docs/document-verification.md</code> — OCR y veredictos</li>
   <li><code>docs/observability.md</code> — trazado distribuido y métricas</li>
   <li><code>DEPLOY.md</code> — cómo se levanta todo el sistema</li>
+  <li><code>docs/storage.md</code> — almacenamiento de documentos (heredado)</li>
 </ul>
 
 <h3>Preguntas probables</h3>
@@ -190,6 +214,8 @@ traza <b>viaja dentro del mensaje de la cola</b>, así que un solo
 <span class="r">Hay un auditor que revisa <b>todas las capas</b>, no solo el resultado final — un secreto borrado en una capa posterior sigue siendo recuperable. Además tiene un autotest que construye una imagen con un secreto filtrado y comprueba que la auditoría la rechaza.</span></p>
 <p class="pregunta"><b>— ¿Qué pasa si el OCR no lee el documento?</b>
 <span class="r">Veredicto <code>ilegible</code>, que es un <b>resultado</b>, no un error: no se reintenta, porque daría lo mismo y gastaría cuota gratuita. Distinto de que el servicio esté caído, que sí se reintenta.</span></p>
+<p class="pregunta"><b>— ¿Cómo se protege el acceso a los documentos?</b>
+<span class="r">El contenedor de blobs es privado y el acceso va por URL firmada con caducidad de 5 minutos. No existe ninguna URL permanente que pueda filtrarse.</span></p>
 </div>
 
 <!-- ==================================================================== -->
@@ -231,9 +257,19 @@ siempre consulta «las transacciones de esta cuenta», así que la consulta toca
 <p class="caja"><b>Ojo:</b> la clave de partición <b>no se puede cambiar</b> tras crear el
 contenedor. Es una decisión de diseño irreversible.</p>
 
+<h4>Capacidad y caducidad en Cosmos <span style="font-weight:400;color:#777">(heredado de Santiago)</span></h4>
+<p>Cosmos no cobra por consultas sino por <b>Request Units</b>: una unidad de
+trabajo. Se aprovisionan 400 RU/s, que caben enteras en la capa gratuita
+(1000 RU/s). Una consulta que recorra varias particiones consume muchas más RU y
+<b>cuesta más dinero</b> — de ahí que la clave de partición importe tanto.</p>
+<p>Los documentos caducan a los <b>90 días</b> (TTL). Es deliberado: la regla de
+fraude con ventana más amplia mira 90 días atrás, así que guardar más sería pagar
+por datos que nadie consulta.</p>
+
 <h3>Documentos que debe estudiar</h3>
 <ul>
   <li><code>docs/messaging.md</code> — colas y desacoplamiento</li>
+  <li><code>docs/credit-report-nosql.md</code> — consumo y costos de Cosmos (heredado)</li>
   <li><code>docs/nosql.md</code> — Cosmos DB y particionado</li>
   <li><code>docs/architecture.md</code> — encaje general</li>
 </ul>
@@ -243,6 +279,8 @@ contenedor. Es una decisión de diseño irreversible.</p>
 <span class="r">Nada se pierde. Los mensajes se acumulan en la cola y se procesan cuando vuelve. Es la diferencia entre una arquitectura acoplada y una desacoplada.</span></p>
 <p class="pregunta"><b>— ¿Por qué NoSQL y no SQL para las transacciones?</b>
 <span class="r">Volumen alto, escritura constante y consultas siempre por cuenta. No hacen falta relaciones complejas. Los <b>casos</b> sí van en PostgreSQL, porque ahí sí hay relaciones y auditoría.</span></p>
+<p class="pregunta"><b>— ¿Qué pasa si el volumen crece mucho?</b>
+<span class="r">Cosmos escala subiendo las RU/s aprovisionadas, que es una variable de configuración. El diseño ya lo contempla; lo que no se puede cambiar es la clave de partición.</span></p>
 </div>
 
 <!-- ==================================================================== -->
@@ -282,9 +320,34 @@ parada.</p>
 y se le conceden permisos sobre los recursos que necesita. Sin contraseñas no hay
 nada que filtrar ni que rotar.</p>
 
+<h4>Costos y capas gratuitas <span style="font-weight:400;color:#777">(heredado de Santiago)</span></h4>
+<table>
+  <tr><th>Servicio</th><th>Capa gratuita</th></tr>
+  <tr><td>Cosmos DB</td><td>1000 RU/s + 25 GB</td></tr>
+  <tr><td>Container Apps</td><td>180 000 vCPU-s/mes (~200 h de una réplica)</td></tr>
+  <tr><td>Document Intelligence</td><td>F0: 500 páginas/mes</td></tr>
+  <tr><td>Log Analytics</td><td>5 GB/mes</td></tr>
+  <tr><td>GHCR (imágenes)</td><td>Gratis con paquetes públicos</td></tr>
+</table>
+<div class="caja">
+  <strong>Dato honesto que conviene tener a mano</strong>
+  El único recurso que cuesta de verdad es <b>PostgreSQL</b>, encendido 24/7. Los
+  contenedores cuestan prácticamente cero gracias al escalado a cero. Se puede
+  parar la base hasta 7 días para contener gasto, pero el sistema deja de
+  funcionar mientras tanto.
+</div>
+
+<h4>Elección de región <span style="font-weight:400;color:#777">(heredado de Santiago)</span></h4>
+<p>No es arbitraria: influye en latencia, coste y <b>disponibilidad de
+servicios</b>. En este proyecto fue un problema real — PostgreSQL no se podía
+crear en varias regiones por restricciones de la suscripción, y una región llegó
+a rechazar la creación del entorno de contenedores <b>por falta de capacidad</b>.</p>
+
 <h3>Documentos que debe estudiar</h3>
 <ul>
   <li><code>DEPLOY.md</code> — el paso a paso completo, con los fallos reales encontrados</li>
+  <li><code>docs/region_justification.md</code> — elección de región (heredado)</li>
+  <li><code>docs/container-optimization.md</code> §5 — costos del despliegue (heredado)</li>
   <li><code>docs/deployment-guide.md</code> — guía de despliegue</li>
   <li><code>infra/deploy-all.sh</code> y <code>infra/containerapps.sh</code> — leer los comentarios, explican el porqué</li>
 </ul>
@@ -294,6 +357,8 @@ nada que filtrar ni que rotar.</p>
 <span class="r">40–60 minutos, casi todo esperando a Azure. PostgreSQL y el entorno de contenedores son lo más lento.</span></p>
 <p class="pregunta"><b>— ¿Qué pasa si un despliegue falla a mitad?</b>
 <span class="r">Se vuelve a lanzar: los scripts son idempotentes y retoman donde estaban. Pero hay que borrar recursos que quedaron a medio crear, porque «existe» no es lo mismo que «funciona».</span></p>
+<p class="pregunta"><b>— ¿Cuánto cuesta mantener esto?</b>
+<span class="r">Casi todo está en capas gratuitas. El gasto real es PostgreSQL, que está encendido siempre. Los contenedores escalan a cero: sin uso, no cuestan.</span></p>
 </div>
 
 <!-- ==================================================================== -->
@@ -409,108 +474,163 @@ podría instalar herramientas ni tendría permisos de administrador.</p>
 
 <!-- ==================================================================== -->
 <div class="persona">
-<h2>Santiago (Chanti) — Datos y costos</h2>
-<p class="rol">Diseño del almacén NoSQL, control de presupuesto, elección de región</p>
+<h2>Decisiones de tecnología en Azure</h2>
+<p class="rol">Qué se eligió, contra qué se comparó y qué se renunció · lo debe saber todo el equipo</p>
 
-<h3>Qué construyó</h3>
-<p>El diseño del almacén de transacciones en Cosmos DB y el <b>control de costos</b>
-del proyecto.</p>
-
-<h3>Conceptos que debe dominar</h3>
-
-<h4>Capacidad en Cosmos DB (RU/s)</h4>
-<p>Cosmos no cobra por consultas sino por <b>Request Units</b>: una unidad de
-trabajo. Se aprovisionan 400 RU/s, que caben enteras en la capa gratuita
-(1000 RU/s). Una consulta mal diseñada —que recorra varias particiones— consume
-muchas más RU y <b>cuesta más dinero</b>. Por eso la clave de partición importa.</p>
-
-<h4>TTL: borrado automático</h4>
-<p>Los documentos caducan a los 90 días. Es deliberado: la regla de fraude con
-ventana más amplia mira 90 días atrás, así que guardar más sería pagar por datos
-que nadie consulta.</p>
-
-<h4>Capas gratuitas usadas</h4>
-<table>
-  <tr><th>Servicio</th><th>Capa gratuita</th></tr>
-  <tr><td>Cosmos DB</td><td>1000 RU/s + 25 GB</td></tr>
-  <tr><td>Container Apps</td><td>180 000 vCPU-s/mes (~200 h de una réplica)</td></tr>
-  <tr><td>Document Intelligence</td><td>F0: 500 páginas/mes</td></tr>
-  <tr><td>Log Analytics</td><td>5 GB/mes</td></tr>
-  <tr><td>GHCR (imágenes)</td><td>Gratis con paquetes públicos</td></tr>
-</table>
+<p>Los profesores rara vez preguntan «¿qué usaron?» — preguntan
+<b>«¿por qué eso y no lo otro?»</b>. Esta sección es para responder eso. Todas
+las decisiones están registradas en <code>docs/decisions.md</code> como ADR
+(<i>Architecture Decision Records</i>), con su contexto y sus consecuencias.</p>
 
 <div class="caja">
-  <strong>Dato honesto que conviene tener a mano</strong>
-  El único recurso que cuesta de verdad es <b>PostgreSQL</b>, que está encendido
-  24/7. Los contenedores cuestan prácticamente cero gracias al escalado a cero.
-  Se puede parar la base hasta 7 días para contener gasto, pero el sistema deja de
-  funcionar mientras tanto.
+  <strong>La regla que explica casi todas las elecciones</strong>
+  El proyecto tenía dos restricciones duras: <b>capa gratuita siempre que
+  existiera</b> y <b>cero credenciales</b> en código, repositorio, pipeline e
+  imágenes. Cuando dudéis del porqué de una elección, casi siempre la respuesta
+  está en una de esas dos.
 </div>
 
-<h4>Elección de región</h4>
-<p>No es arbitraria: influye en latencia, coste y <b>disponibilidad de servicios</b>.
-En este proyecto fue un problema real — PostgreSQL no se podía crear en varias
-regiones por restricciones de la suscripción, y una región llegó a rechazar la
-creación del entorno de contenedores <b>por falta de capacidad</b>.</p>
+<h3>Almacenamiento de datos</h3>
 
-<h3>Documentos que debe estudiar</h3>
-<ul>
-  <li><code>docs/nosql.md</code> — diseño de Cosmos</li>
-  <li><code>docs/credit-report-nosql.md</code> — consumo y costos</li>
-  <li><code>docs/region_justification.md</code> — elección de región</li>
-  <li><code>docs/container-optimization.md</code> §5 — costos del despliegue en contenedores</li>
-</ul>
+<h4>Cosmos DB for NoSQL — para las transacciones</h4>
+<table>
+  <tr><th>Alternativa</th><th>Por qué se descartó</th></tr>
+  <tr><td>Azure SQL</td><td>Volumen alto de escritura y consultas siempre por cuenta: no se aprovecharían las relaciones y costaría más escalar</td></tr>
+  <tr><td>Table Storage</td><td>Más barato, pero sin consultas ricas ni TTL automático</td></tr>
+  <tr><td>Cosmos con API MongoDB</td><td>Ventaja solo si ya se domina Mongo; la API nativa integra mejor con el SDK</td></tr>
+</table>
+<p><b>Se eligió</b> por volumen, escalado horizontal, TTL nativo y <b>capa
+gratuita de 1000 RU/s</b>. La renuncia: sin <code>JOIN</code> ni transacciones
+entre particiones.</p>
 
-<h3>Preguntas probables</h3>
-<p class="pregunta"><b>— ¿Cuánto cuesta mantener esto?</b>
-<span class="r">Casi todo está en capas gratuitas. El gasto real es PostgreSQL. Los contenedores escalan a cero: sin uso, no cuestan.</span></p>
-<p class="pregunta"><b>— ¿Qué pasa si el volumen crece mucho?</b>
-<span class="r">Cosmos y Container Apps escalan solos; habría que subir las RU/s aprovisionadas y el máximo de réplicas. El diseño ya lo contempla: son variables de configuración.</span></p>
+<h4>PostgreSQL Flexible Server — para los casos</h4>
+<table>
+  <tr><th>Alternativa</th><th>Por qué se descartó</th></tr>
+  <tr><td>Azure SQL Database</td><td>Equivalente en capacidad; PostgreSQL se eligió por coste y por los <i>triggers</i> en plpgsql para la auditoría inmutable</td></tr>
+  <tr><td>Guardar los casos en Cosmos</td><td>Los casos tienen relaciones (caso → asignación → resolución → auditoría) y exigen atomicidad. Es justo lo que NoSQL no da</td></tr>
+</table>
+<p><b>Punto clave para defender:</b> usar <b>dos bases distintas no es
+incoherencia, es diseño</b>. Cada carga de trabajo tiene su motor: volumen y
+velocidad para transacciones, relaciones y auditoría para casos.</p>
+
+<h4>Blob Storage — para los documentos</h4>
+<p>La alternativa era guardar los ficheros <b>dentro</b> de la base de datos.
+Se descartó porque los binarios inflan la base, encarecen los respaldos y
+ralentizan las consultas. En la base solo queda la referencia.</p>
+
+<h3>Mensajería</h3>
+
+<h4>Azure Queue Storage — frente a Service Bus y Event Grid</h4>
+<table>
+  <tr><th>Alternativa</th><th>Qué aportaba</th><th>Por qué se descartó</th></tr>
+  <tr><td>Service Bus</td><td>Sesiones, temas, transacciones, orden garantizado</td><td>No hay capa gratuita real y el proyecto no necesita esas garantías</td></tr>
+  <tr><td>Event Grid</td><td>Distribución de eventos a muchos suscriptores</td><td>Es <b>notificación</b>, no cola: si nadie escucha, el evento se pierde. Aquí no se puede perder un caso de fraude</td></tr>
+  <tr><td>Event Hubs</td><td>Ingesta masiva tipo streaming</td><td>Pensado para millones de eventos/segundo; sobredimensionado</td></tr>
+  <tr><td>Llamada HTTP directa</td><td>Más simple</td><td>Acopla API y motor: si el motor cae, la transacción se pierde</td></tr>
+</table>
+<div class="caja">
+  <strong>ADR-011, la distinción que más se pregunta</strong>
+  <b>Evento ≠ cola.</b> Un evento notifica y se olvida; una cola <b>retiene</b>
+  hasta que alguien confirma el procesamiento. En un sistema antifraude perder un
+  mensaje es perder un fraude, así que se eligió cola con garantía de entrega.
 </div>
 
-<!-- ==================================================================== -->
-<div class="persona">
-<h2>Samuel — Almacenamiento de documentos</h2>
-<p class="rol">Blob Storage, subida de comprobantes, acceso temporal seguro</p>
+<h3>Cómputo</h3>
 
-<h3>Qué construyó</h3>
-<p>El almacenamiento de los <b>comprobantes</b> que se adjuntan a un caso y el
-mecanismo para consultarlos de forma segura.</p>
+<h4>Azure Container Apps — frente a AKS, App Service y ACI</h4>
+<table>
+  <tr><th>Alternativa</th><th>Por qué se descartó</th></tr>
+  <tr><td><b>AKS</b> (Kubernetes)</td><td>Potente pero exige administrar el clúster, y los nodos se pagan aunque no haya tráfico. Demasiada complejidad operativa para el equipo</td></tr>
+  <tr><td><b>App Service</b></td><td>Es de donde se venía. Sin escalado a cero real ni escalado por longitud de cola, y menos portable</td></tr>
+  <tr><td><b>Container Instances</b></td><td>Contenedores sueltos, sin escalado automático ni gestión de revisiones</td></tr>
+</table>
+<p><b>Se eligió</b> por escalado a cero (coste cero sin uso), escalado por cola con
+KEDA integrado, y capa gratuita mensual generosa. Es <b>Kubernetes gestionado sin
+tener que saber Kubernetes</b>. La renuncia: menos control fino que AKS y arranque
+en frío tras la inactividad.</p>
 
-<h3>Conceptos que debe dominar</h3>
+<h4>Worker propio — frente a Azure Functions</h4>
+<p>El motor corría como Azure Function y se reescribió como proceso autónomo. La
+razón fue medible: la imagen base de Functions <b>pesa más de 1 GB</b> y hacía
+imposible el objetivo de imagen ligera. El coste de la decisión fue reimplementar
+a mano lo que el host daba gratis —reintento, cola <i>poison</i>, apagado
+limpio—, todo cubierto por pruebas.</p>
 
-<h4>Por qué Blob Storage y no la base de datos</h4>
-<p>Los ficheros binarios (PDF, imágenes) no van en una base de datos: la
-encarecen y la ralentizan. Van a Blob Storage, y en la base solo se guarda la
-<b>referencia</b>.</p>
+<h4>KEDA — frente a escalar por CPU</h4>
+<p>Escalar por CPU es la métrica equivocada aquí: un worker esperando mensajes usa
+poca CPU aunque la cola esté llena. KEDA escala por <b>longitud de la cola</b>,
+que es la señal real de trabajo pendiente, y permite bajar a cero.</p>
 
-<h4>URLs temporales (SAS)</h4>
-<p>El contenedor de blobs es <b>privado</b>. Para que el analista vea un documento
-se genera una <b>URL firmada que caduca</b> (5 minutos). Si esa URL se filtrara,
-en minutos deja de servir. Es mucho mejor que hacer público el contenedor.</p>
+<h3>Seguridad</h3>
 
-<h4>Validación de subida</h4>
-<p>Antes de aceptar un fichero se comprueba <b>tipo</b> (solo PDF, PNG, JPEG) y
-<b>tamaño</b> (máximo 5 MB). Sin esas validaciones, cualquiera podría subir un
-ejecutable o llenar el almacenamiento.</p>
+<h4>Key Vault + Managed Identity — frente a variables de entorno</h4>
+<table>
+  <tr><th>Alternativa</th><th>Por qué se descartó</th></tr>
+  <tr><td>Secretos en variables de entorno / app settings</td><td>Visibles para cualquiera con acceso al portal, sin rotación ni auditoría de acceso</td></tr>
+  <tr><td>Key Vault con <i>service principal</i></td><td>Resuelve a medias: hay que guardar la contraseña del <i>service principal</i>, o sea que solo mueve el problema</td></tr>
+</table>
+<p><b>Managed Identity es la pieza que cierra el círculo:</b> Azure reconoce al
+servicio por su identidad y le entrega el secreto <b>sin que haya ninguna
+contraseña en ninguna parte</b>. Responde a la pregunta clásica de «¿y quién
+guarda la llave de la caja fuerte?».</p>
 
-<h4>Encadenado con la verificación documental</h4>
-<p>Al subir un documento se publica un evento en la cola <code>documents</code>.
-El worker lo recoge, descarga el fichero, lo pasa por OCR y contrasta los datos
-con la transacción. El almacenamiento es <b>el punto de entrada</b> de esa cadena.</p>
+<h4>GHCR — frente a Azure Container Registry</h4>
+<table>
+  <tr><th>Alternativa</th><th>Ventaja</th><th>Por qué se descartó</th></tr>
+  <tr><td>ACR</td><td><i>Pull</i> por Managed Identity: cero credenciales, y mejor integrado con Azure</td><td><b>No tiene capa gratuita</b> (~5 USD/mes)</td></tr>
+</table>
+<p>Se eligió GHCR por gratuidad. Publicando los paquetes como <b>públicos</b> el
+<i>pull</i> es anónimo, así que tampoco hay credencial que guardar — el sistema
+queda <b>sin ningún secreto de larga duración</b>.</p>
+<p class="caja"><b>Matiz honesto:</b> el enunciado pedía «registro privado». Se justificó
+apartarse porque, con el repositorio ya público, un paquete privado protegía un
+artefacto derivado de material público y costaba un token permanente más un límite
+de transferencia. Revertirlo es cambiar una variable.</p>
 
-<h3>Documentos que debe estudiar</h3>
-<ul>
-  <li><code>docs/storage.md</code> — almacenamiento de documentos</li>
-  <li><code>docs/document-verification.md</code> — qué ocurre después de subir</li>
-  <li><code>docs/security.md</code> — la parte de acceso temporal</li>
-</ul>
+<h3>Verificación documental</h3>
 
-<h3>Preguntas probables</h3>
-<p class="pregunta"><b>— ¿Cómo se protege el acceso a los documentos?</b>
-<span class="r">El contenedor es privado y el acceso va por URL firmada con caducidad de 5 minutos. No hay ninguna URL permanente que pueda filtrarse.</span></p>
-<p class="pregunta"><b>— ¿Por qué una cola al subir un documento?</b>
-<span class="r">Porque el OCR es lento. Sin cola, quien sube el fichero esperaría a que se analizara. Con cola, la respuesta es inmediata y el análisis ocurre después.</span></p>
+<h4>Azure AI Document Intelligence — frente a OCR genérico</h4>
+<table>
+  <tr><th>Alternativa</th><th>Por qué se descartó</th></tr>
+  <tr><td>Computer Vision (OCR genérico)</td><td>Devuelve texto plano; habría que escribir los patrones para localizar importe y fecha</td></tr>
+  <tr><td>Tesseract (open source, autoalojado)</td><td>Gratis, pero exige alojarlo y entrenarlo, y no entiende la estructura de un recibo</td></tr>
+</table>
+<p>Se eligió el modelo <b>preentrenado <code>prebuilt-receipt</code></b>, que
+devuelve campos ya identificados —total, fecha, comercio— <b>con un nivel de
+confianza por campo</b>. Ese dato es el que permite descartar lecturas dudosas en
+vez de acusar de fraude por una cifra mal reconocida. Capa gratuita F0: 500
+páginas/mes.</p>
+
+<h3>Observabilidad</h3>
+
+<h4>OpenTelemetry — frente al SDK propio de Application Insights</h4>
+<p>OpenTelemetry es un <b>estándar abierto</b>: el mismo código funciona con
+Application Insights, Datadog, Grafana o cualquier colector. El SDK propietario
+habría atado el proyecto a Azure. Es la misma lógica que Clean Architecture, pero
+aplicada a la telemetría.</p>
+<div class="caja aviso">
+  <strong>Y aquí la decisión no salió bien — conviene contarlo</strong>
+  El agente gestionado de Container Apps <b>no aceptó las trazas</b>: su cadena de
+  conexión no se aplicaba por ninguna vía. La salida fue separar <b>trazar</b> de
+  <b>exportar</b>: se desactivó el envío pero se mantuvo la generación de
+  identificadores de traza, así que se sigue pudiendo seguir una petición de la
+  API al worker mirando los registros. Reconocer un límite y explicar cómo se
+  rodeó vale más que ocultarlo.
+</div>
+
+<h3>Resumen para memorizar</h3>
+<table>
+  <tr><th>Necesidad</th><th>Elección</th><th>Razón en una línea</th></tr>
+  <tr><td>Historial de transacciones</td><td>Cosmos DB</td><td>Volumen y consultas por cuenta</td></tr>
+  <tr><td>Casos y auditoría</td><td>PostgreSQL</td><td>Relaciones y trazabilidad inmutable</td></tr>
+  <tr><td>Documentos</td><td>Blob Storage</td><td>Binarios fuera de la base</td></tr>
+  <tr><td>Desacoplar API y motor</td><td>Queue Storage</td><td>Garantía de entrega, no notificación</td></tr>
+  <tr><td>Ejecutar el sistema</td><td>Container Apps</td><td>Escalado a cero y por cola</td></tr>
+  <tr><td>Secretos</td><td>Key Vault + Managed Identity</td><td>Ninguna contraseña en ninguna parte</td></tr>
+  <tr><td>Imágenes</td><td>GHCR</td><td>Gratis; <i>pull</i> anónimo sin credencial</td></tr>
+  <tr><td>Leer comprobantes</td><td>Document Intelligence F0</td><td>Campos y confianza, no texto plano</td></tr>
+  <tr><td>Telemetría</td><td>OpenTelemetry</td><td>Estándar abierto, sin atarse al proveedor</td></tr>
+</table>
 </div>
 
 <!-- ==================================================================== -->
