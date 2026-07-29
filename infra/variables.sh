@@ -16,6 +16,10 @@ APP_LOCATION=centralus
 SUFFIX="${SUFFIX:-}"
 # Región de Cosmos (eastus suele reportar falta de cupo; eastus2 sí). Configurable.
 COSMOS_LOCATION="${COSMOS_LOCATION:-eastus2}"
+# Región de PostgreSQL Flexible Server. En suscripciones restringidas (p. ej.
+# estudiante) eastus/eastus2 devuelven "location is restricted"; centralus sí
+# permite crear el servidor. Configurable.
+DB_LOCATION="${DB_LOCATION:-centralus}"
 
 RESOURCE_GROUP=rg-${PROJECT}-${ENV}
 APP_SERVICE_PLAN=plan-${PROJECT}-${ENV}

@@ -37,7 +37,11 @@ class PgCaseWriteRepository(CaseWriteRepository):
 
         with psycopg.connect(self._dsn) as conn, conn.cursor() as cur:
             # Usuario de aplicación para la auditoría inmutable.
-            cur.execute("SET LOCAL app.current_user = %s", (_APP_USER,))
+            # set_config(...) en vez de SET LOCAL: SET no admite parámetros
+            # vinculados y 'current_user' es palabra reservada (rompe el parser).
+            cur.execute(
+                "SELECT set_config('app.current_user', %s, true)", (_APP_USER,)
+            )
             cur.execute(
                 """
                 INSERT INTO casos (titulo, descripcion, estado_id, transaction_id, account_id)
@@ -72,7 +76,7 @@ class PgCaseWriteRepository(CaseWriteRepository):
         import psycopg
 
         with psycopg.connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute("SET LOCAL app.current_user = %s", (actor,))
+            cur.execute("SELECT set_config('app.current_user', %s, true)", (actor,))
             self._ensure_exists(cur, case_id)
             cur.execute(
                 "INSERT INTO asignaciones (caso_id, usuario_id) VALUES (%s, %s)",
@@ -90,7 +94,7 @@ class PgCaseWriteRepository(CaseWriteRepository):
 
         detalle = resolution if not note else f"{resolution} - {note}"
         with psycopg.connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute("SET LOCAL app.current_user = %s", (actor,))
+            cur.execute("SELECT set_config('app.current_user', %s, true)", (actor,))
             self._ensure_exists(cur, case_id)
             cur.execute(
                 """

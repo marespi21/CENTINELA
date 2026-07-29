@@ -4,8 +4,9 @@
 -- Motor: PostgreSQL (Azure Database for Flexible Server)
 -- =============================================================================
 
--- Habilitar extensión para UUIDs
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- UUIDs: se usa gen_random_uuid() (nativo en PostgreSQL >= 13), por lo que NO se
+-- requiere la extensión "uuid-ossp". Azure Database for PostgreSQL no la permite
+-- por defecto (no está en la allow-list), así que declararla rompía el DDL.
 
 -- 1. Tabla: estados
 CREATE TABLE IF NOT EXISTS estados (

@@ -44,11 +44,14 @@ bash "${SCRIPT_DIR}/deploy.sh"
 # para la demo end-to-end se usa acceso público + firewall. En producción se sube
 # a App Service B1+ con VNet y se usa el script privado.
 echo "[2/7] PostgreSQL (modo demo: público con firewall)..."
+# El provider de PostgreSQL debe estar registrado (deploy.sh registra storage/web/
+# cosmos, pero NO éste). Sin esto falla con MissingSubscriptionRegistration.
+az provider register --namespace Microsoft.DBforPostgreSQL --wait --output none 2>/dev/null || true
 DB_ADMIN_PASS="${DB_ADMIN_PASS:-Centinela$(openssl rand -hex 6)!}"
 if ! az postgres flexible-server show -g "${RESOURCE_GROUP}" -n "${DB_SERVER}" &>/dev/null; then
   az postgres flexible-server create \
     --resource-group "${RESOURCE_GROUP}" --name "${DB_SERVER}" \
-    --location "${LOCATION}" \
+    --location "${DB_LOCATION}" \
     --admin-user "${DB_ADMIN_USER}" --admin-password "${DB_ADMIN_PASS}" \
     --sku-name Standard_B1ms --tier Burstable --storage-size 32 --version 16 \
     --public-access 0.0.0.0 --yes --output none
@@ -58,9 +61,13 @@ fi
 # Permitir la IP del desplegador para aplicar el DDL desde esta máquina.
 MYIP="$(curl -s ifconfig.me || true)"
 if [[ -n "${MYIP}" ]]; then
+  # OJO sintaxis: la regla usa --server-name (no -n) y --name para el nombre de
+  # la regla (no --rule-name). Con la sintaxis vieja la regla nunca se creaba y
+  # el DDL fallaba con "Operation timed out".
   az postgres flexible-server firewall-rule create \
-    -g "${RESOURCE_GROUP}" -n "${DB_SERVER}" --rule-name allow-deployer \
-    --start-ip-address "${MYIP}" --end-ip-address "${MYIP}" --output none 2>/dev/null || true
+    --resource-group "${RESOURCE_GROUP}" --server-name "${DB_SERVER}" --name allow-deployer \
+    --start-ip-address "${MYIP}" --end-ip-address "${MYIP}" --output none || \
+    echo "    [AVISO] No se pudo crear la regla de firewall para la IP del desplegador."
 fi
 az postgres flexible-server db create \
   -g "${RESOURCE_GROUP}" -s "${DB_SERVER}" -d "${DB_NAME}" --output none 2>/dev/null || true
@@ -101,14 +108,28 @@ echo "[6/7] Configurando app settings y desplegando código..."
 # Ajustes no-secretos (endpoint/config) en Web App y Function App.
 for TARGET in "webapp:${WEBAPP}" "functionapp:${FUNCTION_APP}"; do
   KIND="${TARGET%%:*}"; NAME="${TARGET##*:}"
+  # STORAGE_ACCOUNT es OBLIGATORIO en la Function App: sin él, el worker cae a la
+  # cola de casos EN MEMORIA (los casos nunca llegan a persist_case).
   az "${KIND}" config appsettings set -g "${RESOURCE_GROUP}" -n "${NAME}" --settings \
     COSMOS_ENDPOINT="${COSMOS_ENDPOINT}" \
     COSMOS_DATABASE="${COSMOS_DATABASE}" \
     COSMOS_CONTAINER="${COSMOS_CONTAINER}" \
+    STORAGE_ACCOUNT="${STORAGE_ACCOUNT}" \
+    CASES_QUEUE="${CASES_QUEUE}" \
     AUTH_ENABLED=true \
     SCM_DO_BUILD_DURING_DEPLOYMENT=true ENABLE_ORYX_BUILD=true \
     --output none
 done
+
+# El worker publica en la cola `cases` por Managed Identity: su identidad necesita
+# el rol de escritura de colas en el storage (sin secretos). Idempotente.
+FUNC_MI="$(az functionapp identity show -g "${RESOURCE_GROUP}" -n "${FUNCTION_APP}" --query principalId -o tsv 2>/dev/null || true)"
+SA_ID="$(az storage account show -g "${RESOURCE_GROUP}" -n "${STORAGE_ACCOUNT}" --query id -o tsv 2>/dev/null || true)"
+if [[ -n "${FUNC_MI}" && -n "${SA_ID}" ]]; then
+  az role assignment create --assignee-object-id "${FUNC_MI}" \
+    --assignee-principal-type ServicePrincipal \
+    --role "Storage Queue Data Contributor" --scope "${SA_ID}" --output none 2>/dev/null || true
+fi
 # Startup de la API (FastAPI/uvicorn).
 az webapp config set -g "${RESOURCE_GROUP}" -n "${WEBAPP}" \
   --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000" --output none
