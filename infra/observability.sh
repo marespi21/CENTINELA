@@ -95,9 +95,12 @@ crear_alerta "alerta-ocr-fallando" \
 # --- 3. Consultas guardadas ---------------------------------------------------
 echo "[3/3] Consultas guardadas para investigar..."
 guardar_consulta() {  # nombre, categoría, KQL
+  # El identificador va en -n/--name. `--saved-search-id` NO existe en la CLI
+  # actual pese a aparecer en documentación antigua: pasarlo aborta el comando
+  # con "unrecognized arguments".
   az monitor log-analytics workspace saved-search create \
     -g "${RESOURCE_GROUP}" --workspace-name "${LOG_WORKSPACE}" \
-    --saved-search-id "$1" --display-name "$1" --category "$2" --saved-query "$3" \
+    -n "$1" --display-name "$1" --category "$2" --saved-query "$3" \
     --output none 2>/dev/null && echo "    '$1' guardada." || echo "    [AVISO] '$1' no se pudo guardar."
 }
 
