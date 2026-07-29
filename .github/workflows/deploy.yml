@@ -2,11 +2,28 @@ name: Desplegar en Container Apps
 
 # Despliega la API y el worker en Azure Container Apps.
 #
-# Autenticación por OIDC federado: GitHub emite un token de vida corta para esta
-# ejecución y Entra ID lo canjea comprobando de qué repositorio y entorno viene.
-# NO hay ningún secreto de Azure guardado en el repositorio — AZURE_CLIENT_ID,
-# AZURE_TENANT_ID y AZURE_SUBSCRIPTION_ID son identificadores públicos y van
-# como *variables*, no como secrets. Configúralo con: infra/github-oidc.sh
+# ############################################################################
+# INACTIVO POR DECISIÓN DE PROYECTO (2026-07-29)
+#
+# Este workflow requiere federación OIDC con Entra ID, que se decidió NO
+# configurar. Sin ella no puede autenticarse en Azure: las variables
+# AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID no existen.
+#
+# **El despliegue del proyecto es MANUAL**, con `az login` y los scripts de
+# `infra/` (ver docs/pruebas-despliegue.md). Este fichero se conserva porque
+# describe el despliegue automático que se implementó y validado
+# sintácticamente, y porque activarlo solo requiere ejecutar
+# `infra/github-oidc.sh` y crear cuatro variables.
+#
+# Se dejó SOLO con disparador manual a propósito: con el `workflow_run`
+# original se habría activado al fusionar a develop y habría fallado en cada
+# push, generando ruido permanente en el repositorio.
+# ############################################################################
+#
+# La alternativa a OIDC seria guardar un service principal con secreto en
+# GitHub, que es justo lo que la regla del sprint prohibe: no caduca solo,
+# tiene permisos amplios y cualquiera con acceso de escritura al repo puede
+# usarlo. Por eso, sin OIDC, el despliegue se queda manual.
 #
 # Se despliega por SHA, nunca por `latest`: una etiqueta móvil puede cambiar
 # bajo los pies de una revisión ya desplegada y hace irreproducible el rollback.
@@ -24,13 +41,6 @@ on:
         description: "Etiqueta a desplegar (vacío = el SHA de este commit)"
         type: string
         required: false
-  # El despliegue automático solo ocurre cuando el pipeline de contenedores ha
-  # terminado en verde: nunca se despliega una imagen que no pasó las pruebas
-  # ni la auditoría de secretos.
-  workflow_run:
-    workflows: ["Contenedores (API + worker)"]
-    branches: ["develop"]
-    types: [completed]
 
 permissions:
   id-token: write # imprescindible para OIDC
@@ -39,11 +49,6 @@ permissions:
 jobs:
   deploy:
     name: Desplegar
-    # En `workflow_run`, GitHub lanza el evento tanto si el pipeline pasó como
-    # si falló. Sin esta condición se desplegaría una imagen rota.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     # El gate de aprobación se configura en Settings → Environments sobre este
     # nombre; para 'prod' basta activar "Required reviewers".
@@ -60,7 +65,7 @@ jobs:
           else
             # Mismo formato que genera el pipeline de contenedores (type=sha,
             # format=short): los 7 primeros caracteres del SHA.
-            TAG="sha-$(echo "${{ github.event.workflow_run.head_sha || github.sha }}" | cut -c1-7)"
+            TAG="sha-$(echo "${{ github.sha }}" | cut -c1-7)"
           fi
           echo "value=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Desplegando etiqueta: ${TAG}"

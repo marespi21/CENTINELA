@@ -137,8 +137,27 @@ del tenant, o mantener el despliegue manual con `az login`.
 Todo lo demás de esta fase —`containerapps.sh`, `rollback.sh`— funciona igual
 ejecutado a mano.
 
-## 8. Estado
+## 8. Estado — **no activado** (decisión de proyecto, 2026-07-29)
 
-Escrito y validado sintácticamente. **Sin ejecutar**: probar la federación
-requiere crear la aplicación en Entra ID y disparar el workflow, y el despliegue
-sigue pendiente de que los paquetes de GHCR pasen a públicos.
+Se decidió **no configurar la federación con Entra ID**. En consecuencia:
+
+- **El despliegue del proyecto es MANUAL**: `az login` + los scripts de `infra/`.
+  Está completamente automatizado en scripts idempotentes, solo que se lanzan a
+  mano en vez de desde el pipeline. Ver `docs/pruebas-despliegue.md`.
+- `deploy.yml`, `rollback.yml` y `deploy-network.yml` quedan **solo con
+  disparador manual** y marcados como inactivos. `deploy.yml` tenía además un
+  disparador automático que se habría activado al fusionar a `develop` y habría
+  fallado en cada push, generando ruido permanente; se retiró.
+- **`AZURE_CREDENTIALS` no se restaura.** Sería la única forma de que estos
+  workflows arrancasen sin OIDC, y es exactamente el secreto que la regla del
+  sprint prohíbe. Borrarlo de GitHub sigue siendo lo correcto: ya no lo usa
+  nadie.
+
+Lo que sí quedó activo y en uso: el pipeline de **contenedores**
+(`containers.yml`), que ejecuta las pruebas, construye, **audita las imágenes en
+busca de secretos** y publica en GHCR. Esa parte no necesita credenciales de
+Azure — usa el `GITHUB_TOKEN` efímero — y ha corrido en verde todo el sprint.
+
+Activar el resto es ejecutar `infra/github-oidc.sh` y crear cuatro variables.
+El tenant lo permite (`allowedToCreateApps: true`, comprobado); la decisión de
+no hacerlo fue deliberada, no un impedimento técnico.
