@@ -183,7 +183,11 @@ fi
 
 if [[ -n "${ENV_STATE}" ]]; then
   echo "    ya existe y está listo (${ENV_REGION})."
-  if [[ "${ENV_REGION// /}" != "${ACA_LOCATION}" ]]; then
+  # Azure devuelve el nombre de display ("East US 2") mientras que la variable
+  # lleva el slug ("eastus2"): hay que normalizar espacios Y mayúsculas o el
+  # aviso salta siempre.
+  ENV_REGION_SLUG="$(echo "${ENV_REGION}" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
+  if [[ "${ENV_REGION_SLUG}" != "$(echo "${ACA_LOCATION}" | tr '[:upper:]' '[:lower:]')" ]]; then
     echo "    [AVISO] está en ${ENV_REGION}, no en ${ACA_LOCATION}. Se reutiliza tal cual;"
     echo "            para moverlo hay que borrarlo y recrearlo."
   fi
@@ -382,16 +386,61 @@ fi
 # Regla KEDA: una réplica más por cada ACA_QUEUE_LENGTH mensajes pendientes.
 # La autenticación del scaler va por la misma Managed Identity, así que tampoco
 # aquí hace falta una connection string de storage.
-for QUEUE in "${QUEUE_NAME}" "${CASES_QUEUE}" "${DOCUMENTS_QUEUE}" "${EXPLANATIONS_QUEUE}"; do
-  az containerapp update -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" \
-    --scale-rule-name "${QUEUE}-scaler" \
-    --scale-rule-type azure-queue \
-    --scale-rule-metadata "accountName=${STORAGE_ACCOUNT}" "queueName=${QUEUE}" \
-                          "queueLength=${ACA_QUEUE_LENGTH}" \
-    --scale-rule-identity "${IDENTITY_ID}" \
-    --output none 2>/dev/null || \
-    echo "    [AVISO] no se pudo aplicar la regla de escalado para '${QUEUE}'."
-done
+# OJO: `az containerapp update --scale-rule-*` REEMPLAZA todas las reglas, no
+# añade una. Aplicándolas en bucle solo sobrevive la última, y el worker se
+# queda sin despertar ante mensajes en las otras colas — con escalado a cero eso
+# significa que una transacción entrante nunca se procesa. Por eso se
+# construyen las cuatro de golpe parcheando la especificación.
+echo "    Aplicando reglas de escalado (4 colas)..."
+WORKER_SPEC="$(mktemp -d)/worker.json"
+az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" -o json >"${WORKER_SPEC}"
+
+python3 - "${WORKER_SPEC}" "${STORAGE_ACCOUNT}" "${IDENTITY_ID}" \
+         "${ACA_QUEUE_LENGTH}" "${ACA_WORKER_MIN_REPLICAS}" "${ACA_WORKER_MAX_REPLICAS}" \
+         "${QUEUE_NAME}" "${CASES_QUEUE}" "${DOCUMENTS_QUEUE}" "${EXPLANATIONS_QUEUE}" <<'PATCH_SCALE'
+import json
+import sys
+
+path, account, identity, queue_length, min_replicas, max_replicas = sys.argv[1:7]
+queues = sys.argv[7:]
+
+with open(path) as handle:
+    app = json.load(handle)
+
+template = app.setdefault("properties", {}).setdefault("template", {})
+template["scale"] = {
+    "minReplicas": int(min_replicas),
+    "maxReplicas": int(max_replicas),
+    "rules": [
+        {
+            "name": f"{queue}-scaler",
+            "azureQueue": {
+                "accountName": account,
+                "queueName": queue,
+                "queueLength": int(queue_length),
+                # Autenticación por Managed Identity: el scaler tampoco necesita
+                # una connection string de storage.
+                "identity": identity,
+                "auth": [],
+            },
+        }
+        for queue in queues
+    ],
+}
+
+with open(path, "w") as handle:
+    json.dump(app, handle)
+PATCH_SCALE
+
+if [[ $? -eq 0 ]] && az containerapp update -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" \
+     --yaml "${WORKER_SPEC}" --output none; then
+  REGLAS="$(az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" \
+    --query "length(properties.template.scale.rules)" -o tsv 2>/dev/null || echo 0)"
+  echo "    ${REGLAS} regla(s) de escalado activas."
+  [[ "${REGLAS}" -lt 4 ]] && echo "    [AVISO] se esperaban 4; revisa la especificación."
+else
+  echo "    [AVISO] no se pudieron aplicar las reglas de escalado."
+fi
 
 # --- Resumen -----------------------------------------------------------------
 API_FQDN="$(az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_API}" \
