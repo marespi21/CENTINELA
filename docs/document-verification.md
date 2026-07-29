@@ -112,9 +112,14 @@ export SUFFIX=sp5x1
 # 1. Aprovisionar el OCR en capa gratuita (idempotente)
 bash infra/document-intelligence.sh
 
-# 2. Aplicar el DDL: añade las columnas de veredicto a caso_documentos.
-#    Usa ALTER ... IF NOT EXISTS, así que es seguro sobre la base ya desplegada.
-psql "$CASES_DB_DSN" -f scripts/init-cases-db.sql
+# 2. Añadir las columnas de veredicto a caso_documentos.
+#
+#    Sobre una base YA desplegada usa la migración aislada, no el script
+#    completo: init-cases-db.sql también es idempotente, pero recrea los
+#    triggers de inmutabilidad (DROP + CREATE), lo que abre una ventana breve
+#    sin protección anti-manipulación de la auditoría. No hay motivo para
+#    asumir ese riesgo solo para añadir cuatro columnas.
+psql "$CASES_DB_DSN" -f scripts/migrations/2026-07-29-verificacion-documental.sql
 
 # 3. Redesplegar el worker con el endpoint del OCR
 bash infra/containerapps.sh

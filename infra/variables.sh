@@ -88,8 +88,12 @@ IMAGE_WORKER="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-worker"
 # los pies de una revisión ya desplegada y romper la reproducibilidad.
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
-# Azure Container Apps. Región con cuota de Container Apps en la suscripción.
-ACA_LOCATION="${ACA_LOCATION:-eastus}"
+# Azure Container Apps. Los entornos corren sobre AKS por debajo, así que
+# heredan sus problemas de capacidad: `eastus` devolvió AKSCapacityHeavyUsage
+# al crear el entorno (2026-07-29). Si vuelve a pasar, prueba otra región —
+# el workspace de Log Analytics puede quedarse donde está, no tienen por qué
+# coincidir.
+ACA_LOCATION="${ACA_LOCATION:-eastus2}"
 ACA_ENVIRONMENT=cae-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
 ACA_API=ca-${PROJECT}-api-${ENV}${SUFFIX:+-${SUFFIX}}
 ACA_WORKER=ca-${PROJECT}-worker-${ENV}${SUFFIX:+-${SUFFIX}}

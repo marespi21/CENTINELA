@@ -99,7 +99,8 @@ activadas.
 ## 6. Coste
 
 Cero cómputo nuevo. La ingesta va contra los **5 GB/mes gratuitos** de Log
-Analytics, con retención a 7 días. El agente OTel gestionado del entorno de
+Analytics, con retención a 30 días —la SKU `PerGB2018` no admite menos, y los
+primeros 31 días de retención no se cobran—. El agente OTel gestionado del entorno de
 Container Apps recibe en `localhost` y reenvía a Application Insights, así que
 **la aplicación no lleva ninguna clave de instrumentación dentro de la imagen**.
 

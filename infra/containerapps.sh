@@ -125,13 +125,37 @@ if [[ "${REGISTRY_VISIBILITY}" != "public" ]]; then
   )
 fi
 
+# --- 3b. Comprobación previa: las imágenes tienen que existir ----------------
+# Sin esto, Container Apps acepta el despliegue y crea una revisión que nunca
+# arranca porque no puede hacer pull; el error solo se ve rebuscando en el
+# portal. Ojo con `latest`: el pipeline SOLO la publica desde la rama por
+# defecto, así que desplegando desde una rama de trabajo hay que indicar la
+# etiqueta `sha-xxxxxxx` explícitamente.
+if command -v docker &>/dev/null && [[ "${REGISTRY_VISIBILITY}" == "public" ]]; then
+  echo "    Verificando que las imágenes existen en el registro..."
+  for IMAGEN in "${IMAGE_API}:${IMAGE_TAG}" "${IMAGE_WORKER}:${IMAGE_TAG}"; do
+    if ! docker manifest inspect "${IMAGEN}" >/dev/null 2>&1; then
+      echo "    [ERROR] No se encuentra '${IMAGEN}'."
+      echo "            Etiquetas disponibles: mira los paquetes del repositorio."
+      echo "            Despliega una concreta con:  export IMAGE_TAG=sha-xxxxxxx"
+      exit 1
+    fi
+  done
+  echo "    ambas imágenes disponibles (${IMAGE_TAG})."
+fi
+
 # --- 4. Log Analytics --------------------------------------------------------
-# Free tier: 5 GB/mes de ingesta y 7 días de retención, suficiente para dev.
+# Capa gratuita: 5 GB/mes de ingesta.
+#
+# Retención de 30 días, no menos: la SKU PerGB2018 rechaza cualquier valor por
+# debajo ("RetentionInDays doesn't match the SKU limits"). Y da igual a efectos
+# de coste, porque los primeros 31 días de retención no se cobran — bajarla no
+# ahorraba nada.
 echo "[5/8] Workspace de Log Analytics ${LOG_WORKSPACE}..."
 if ! az monitor log-analytics workspace show -g "${RESOURCE_GROUP}" -n "${LOG_WORKSPACE}" &>/dev/null; then
   az monitor log-analytics workspace create \
     -g "${RESOURCE_GROUP}" -n "${LOG_WORKSPACE}" --location "${ACA_LOCATION}" \
-    --retention-time 7 --output none
+    --retention-time 30 --output none
 fi
 LOG_ID="$(az monitor log-analytics workspace show -g "${RESOURCE_GROUP}" -n "${LOG_WORKSPACE}" \
   --query customerId -o tsv)"
@@ -140,7 +164,30 @@ LOG_KEY="$(az monitor log-analytics workspace get-shared-keys -g "${RESOURCE_GRO
 
 # --- 5. Entorno de Container Apps + agente OTel ------------------------------
 echo "[6/8] Entorno ${ACA_ENVIRONMENT}..."
-if ! az containerapp env show -g "${RESOURCE_GROUP}" -n "${ACA_ENVIRONMENT}" &>/dev/null; then
+# Que el recurso EXISTA no significa que sirva. Un intento anterior que falló
+# (p. ej. AKSCapacityHeavyUsage) deja el entorno creado pero inservible, y
+# saltárselo por "ya existe" hace que el despliegue se quede girando sobre algo
+# que nunca va a estar listo. Se comprueban las tres cosas: existencia, estado
+# y región.
+ENV_STATE="$(az containerapp env show -g "${RESOURCE_GROUP}" -n "${ACA_ENVIRONMENT}" \
+  --query properties.provisioningState -o tsv 2>/dev/null || true)"
+ENV_REGION="$(az containerapp env show -g "${RESOURCE_GROUP}" -n "${ACA_ENVIRONMENT}" \
+  --query location -o tsv 2>/dev/null || true)"
+
+if [[ -n "${ENV_STATE}" && "${ENV_STATE}" != "Succeeded" ]]; then
+  echo "    [ERROR] El entorno existe pero está en estado '${ENV_STATE}' (región: ${ENV_REGION})."
+  echo "            Suele ser el resto de un intento fallido. Bórralo y repite:"
+  echo "              az containerapp env delete -g ${RESOURCE_GROUP} -n ${ACA_ENVIRONMENT} --yes"
+  exit 1
+fi
+
+if [[ -n "${ENV_STATE}" ]]; then
+  echo "    ya existe y está listo (${ENV_REGION})."
+  if [[ "${ENV_REGION// /}" != "${ACA_LOCATION}" ]]; then
+    echo "    [AVISO] está en ${ENV_REGION}, no en ${ACA_LOCATION}. Se reutiliza tal cual;"
+    echo "            para moverlo hay que borrarlo y recrearlo."
+  fi
+else
   az containerapp env create \
     -g "${RESOURCE_GROUP}" -n "${ACA_ENVIRONMENT}" --location "${ACA_LOCATION}" \
     --logs-workspace-id "${LOG_ID}" --logs-workspace-key "${LOG_KEY}" \
@@ -277,6 +324,9 @@ else
 fi
 
 # --- 7. Worker (sin ingress, escala por longitud de cola) --------------------
+# El worker no expone puerto: para eso NO se pasa `--ingress`. No existe un
+# valor "disabled" —la CLI solo acepta internal|external— y omitir el flag es
+# la forma correcta de dejar la app sin entrada de red.
 echo "[8/8] Container App del worker..."
 # Verificación documental (Fase 2): si el recurso de OCR existe, el worker
 # recibe su endpoint y verifica; si no, cae al analizador nulo y solo vincula el
@@ -318,7 +368,6 @@ if ! az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" &>/dev/null;
       "cosmos-key=keyvaultref:$(kv_ref ${KV_SECRET_COSMOS_KEY}),identityref:${IDENTITY_ID}" \
       "cases-db-dsn=keyvaultref:$(kv_ref ${KV_SECRET_CASES_DSN}),identityref:${IDENTITY_ID}" \
     --env-vars "${WORKER_ENV_VARS[@]}" \
-    --ingress disabled \
     --cpu "${ACA_CPU}" --memory "${ACA_MEMORY}" \
     --min-replicas "${ACA_WORKER_MIN_REPLICAS}" --max-replicas "${ACA_WORKER_MAX_REPLICAS}" \
     --output none

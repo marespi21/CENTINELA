@@ -165,7 +165,7 @@ aparezca nunca en la línea de comandos: se siembra en Key Vault con
 |---|---|---|
 | Azure Container Apps | 180 000 vCPU-s + 360 000 GiB-s + 2 M peticiones/mes | A 0,25 vCPU / 0,5 GiB son **~200 h/mes de una réplica**. Con `min-replicas=0` en ambas apps, sin tráfico el gasto es 0. |
 | GHCR (paquetes **públicos**) | Almacenamiento y transferencia **ilimitados y gratuitos** | Las dos imágenes suman ~109 MiB por juego de etiquetas; las capas se comparten entre etiquetas. |
-| Log Analytics / App Insights | 5 GB/mes de ingesta | Retención puesta a 7 días. |
+| Log Analytics / App Insights | 5 GB/mes de ingesta | Retención de 30 días: la SKU `PerGB2018` rechaza menos, y los primeros 31 no se cobran. |
 
 **Estimación de crédito para la Fase 1: ~0 USD**, mientras el escalado a cero
 absorba la carga de demo. El objetivo del sprint (<60 USD, techo 200) no se ve
