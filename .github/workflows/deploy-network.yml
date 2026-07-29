@@ -1,16 +1,39 @@
 name: deploy-network
+
+# Migrado a OIDC federado (Sprint 6, Fase 5).
+#
+# Antes usaba `secrets.AZURE_CREDENTIALS`: un service principal con clientSecret
+# guardado en el repositorio. Ese secreto no caduca solo, tiene permisos sobre la
+# suscripción y cualquiera con acceso de escritura al repo podía usarlo desde un
+# workflow. Contradecía la regla del sprint de cero credenciales en el pipeline.
+#
+# Ahora GitHub emite un token de vida corta por ejecución y Entra ID lo canjea
+# comprobando el origen. No queda nada que filtrar.
+#
+# Configúralo con: bash infra/github-oidc.sh
+# Y borra el secreto viejo: Settings → Secrets → Actions → AZURE_CREDENTIALS
+
 on:
   workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: dev
     steps:
       - uses: actions/checkout@v4
-      - name: Azure Login
-        uses: azure/login@v1
+
+      - name: Azure Login (OIDC, sin secretos)
+        uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: Execute deploy script
         run: |
           bash scripts/deploy-network.sh --resource-group NetworkWatcherRG --location mexicocentral

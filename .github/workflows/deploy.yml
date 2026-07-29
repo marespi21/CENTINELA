@@ -1,0 +1,126 @@
+name: Desplegar en Container Apps
+
+# Despliega la API y el worker en Azure Container Apps.
+#
+# Autenticación por OIDC federado: GitHub emite un token de vida corta para esta
+# ejecución y Entra ID lo canjea comprobando de qué repositorio y entorno viene.
+# NO hay ningún secreto de Azure guardado en el repositorio — AZURE_CLIENT_ID,
+# AZURE_TENANT_ID y AZURE_SUBSCRIPTION_ID son identificadores públicos y van
+# como *variables*, no como secrets. Configúralo con: infra/github-oidc.sh
+#
+# Se despliega por SHA, nunca por `latest`: una etiqueta móvil puede cambiar
+# bajo los pies de una revisión ya desplegada y hace irreproducible el rollback.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Entorno de destino"
+        type: choice
+        options: ["dev", "prod"]
+        default: "dev"
+        required: true
+      image_tag:
+        description: "Etiqueta a desplegar (vacío = el SHA de este commit)"
+        type: string
+        required: false
+  # El despliegue automático solo ocurre cuando el pipeline de contenedores ha
+  # terminado en verde: nunca se despliega una imagen que no pasó las pruebas
+  # ni la auditoría de secretos.
+  workflow_run:
+    workflows: ["Contenedores (API + worker)"]
+    branches: ["develop"]
+    types: [completed]
+
+permissions:
+  id-token: write # imprescindible para OIDC
+  contents: read
+
+jobs:
+  deploy:
+    name: Desplegar
+    # En `workflow_run`, GitHub lanza el evento tanto si el pipeline pasó como
+    # si falló. Sin esta condición se desplegaría una imagen rota.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    # El gate de aprobación se configura en Settings → Environments sobre este
+    # nombre; para 'prod' basta activar "Required reviewers".
+    environment: ${{ inputs.environment || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolver la etiqueta a desplegar
+        id: tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            TAG="${{ inputs.image_tag }}"
+          else
+            # Mismo formato que genera el pipeline de contenedores (type=sha,
+            # format=short): los 7 primeros caracteres del SHA.
+            TAG="sha-$(echo "${{ github.event.workflow_run.head_sha || github.sha }}" | cut -c1-7)"
+          fi
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Desplegando etiqueta: ${TAG}"
+
+      - name: Autenticarse en Azure (OIDC, sin secretos)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Desplegar
+        env:
+          SUFFIX: ${{ vars.AZURE_SUFFIX }}
+          IMAGE_TAG: ${{ steps.tag.outputs.value }}
+        run: bash infra/containerapps.sh
+
+      - name: Comprobar salud
+        id: smoke
+        env:
+          SUFFIX: ${{ vars.AZURE_SUFFIX }}
+        run: |
+          source infra/variables.sh
+          FQDN=$(az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_API}" \
+                   --query properties.configuration.ingress.fqdn -o tsv)
+          echo "API: https://${FQDN}"
+
+          # Con escalado a cero, la primera petición arranca el contenedor: hay
+          # que dar margen al arranque en frío antes de declarar el fallo.
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${FQDN}/health" || true)
+            if [ "$CODE" = "200" ]; then
+              echo "Salud OK tras $i intento(s)."
+              curl -s "https://${FQDN}/health/ready"
+              exit 0
+            fi
+            sleep 9
+          done
+          echo "::error::La API no respondió 200 en /health tras el despliegue (último: $CODE)"
+          exit 1
+
+      # Un despliegue que deja el servicio caído se deshace solo. Sin esto, el
+      # sistema queda roto hasta que alguien se dé cuenta y actúe a mano.
+      - name: Rollback automático si la salud falla
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          SUFFIX: ${{ vars.AZURE_SUFFIX }}
+        run: |
+          echo "::warning::Salud fallida; volviendo a la revisión anterior."
+          bash infra/rollback.sh
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Despliegue"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Entorno | ${{ inputs.environment || 'dev' }} |"
+            echo "| Etiqueta | ${{ steps.tag.outputs.value }} |"
+            echo "| Salud | ${{ steps.smoke.outcome || 'no ejecutado' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
