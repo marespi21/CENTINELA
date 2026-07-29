@@ -36,7 +36,10 @@ trap 'rm -rf "${WORKDIR}"' EXIT
 # CA (/etc/ssl/certs, certifi) son *.pem legítimos y se excluyen del patrón.
 SENSITIVE_NAMES='(^|/)(\.env|\.env\..*|local\.settings\.json|credentials\.json|principal_id\.txt|id_rsa|.*\.pfx)$'
 SENSITIVE_KEYS='(\.pem|\.key)$'
-CERT_ALLOWLIST='(etc/ssl/certs/|/certifi/|usr/lib/ssl/|usr/share/ca-certificates/)'
+# Rutas donde viven los paquetes de certificados de CA del sistema, que son
+# *.pem legítimos. Cubre Debian (`etc/ssl/certs/`) y Alpine, que además guarda
+# el bundle suelto en `etc/ssl/cert.pem` y duplica en `etc/ssl1.1/`.
+CERT_ALLOWLIST='(etc/ssl/|etc/ssl1\.1/|/certifi/|usr/lib/ssl/|usr/share/ca-certificates/)'
 
 # Valores que delatan una credencial REAL, no un placeholder de documentación ni
 # una constante de librería. Por eso cada patrón exige material criptográfico

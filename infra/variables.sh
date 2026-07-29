@@ -84,6 +84,7 @@ REGISTRY="${REGISTRY:-ghcr.io}"
 REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-marespi21}"
 IMAGE_API="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-api"
 IMAGE_WORKER="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-worker"
+IMAGE_CONSOLE="${REGISTRY}/${REGISTRY_NAMESPACE}/${PROJECT}-console"
 # Etiqueta a desplegar. Un sha corto es inmutable; `latest` puede cambiar bajo
 # los pies de una revisión ya desplegada y romper la reproducibilidad.
 IMAGE_TAG="${IMAGE_TAG:-latest}"
@@ -97,6 +98,9 @@ ACA_LOCATION="${ACA_LOCATION:-eastus2}"
 ACA_ENVIRONMENT=cae-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
 ACA_API=ca-${PROJECT}-api-${ENV}${SUFFIX:+-${SUFFIX}}
 ACA_WORKER=ca-${PROJECT}-worker-${ENV}${SUFFIX:+-${SUFFIX}}
+# Consola del analista (Next.js). Ingress publico; el BFF corre en servidor, asi
+# que la clave de analista NUNCA llega al navegador.
+ACA_CONSOLE=ca-${PROJECT}-console-${ENV}${SUFFIX:+-${SUFFIX}}
 LOG_WORKSPACE=log-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
 # Identidad gestionada de usuario: la comparten API y worker para leer Key
 # Vault, las colas y Cosmos SIN ninguna credencial en la imagen.
@@ -137,6 +141,8 @@ REGISTRY_VISIBILITY="${REGISTRY_VISIBILITY:-public}"
 # Solo se usa si REGISTRY_VISIBILITY=private. Se guarda en Key Vault; NUNCA en
 # el repo ni en el pipeline.
 KV_SECRET_GHCR_TOKEN=ghcr-pull-token
+# Clave que la consola usa desde su BFF para hablar con la API.
+KV_SECRET_ANALYST_KEY=analyst-api-key
 
 # Alias usados por scripts legacy / mensajes
 PROJECT_NAME="${PROJECT}"

@@ -485,15 +485,86 @@ else
   echo "    [AVISO] no se pudieron aplicar las reglas de escalado."
 fi
 
-# --- Resumen -----------------------------------------------------------------
+# --- 8. Consola del analista (Next.js) ---------------------------------------
+# El FQDN de la API se necesita AQUI, no solo en el resumen: es lo que la
+# consola recibe como API_BASE_URL para saber contra que hablar.
 API_FQDN="$(az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_API}" \
   --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)"
 
+# Ingress público. El BFF de Next corre EN SERVIDOR, así que la clave de
+# analista nunca llega al navegador: se inyecta como secreto desde Key Vault y
+# solo la ve el proceso de Node.
+echo "[9/9] Container App de la consola..."
+
+# La clave del analista tiene que existir en Key Vault. Se deriva de `api-keys`
+# (formato "clave:rol,...") tomando la de administrador, para no inventar una
+# credencial nueva ni pedirla por variable de entorno.
+if ! az keyvault secret show --vault-name "${KEY_VAULT}" --name "${KV_SECRET_ANALYST_KEY}" &>/dev/null; then
+  API_KEYS_RAW="$(az keyvault secret show --vault-name "${KEY_VAULT}" \
+    --name "${KV_SECRET_API_KEYS}" --query value -o tsv 2>/dev/null || true)"
+  ANALYST_KEY="$(printf '%s' "${API_KEYS_RAW}" | tr ',' '\n' \
+    | awk -F: '$2 ~ /administrador/ {print $1; exit}')"
+  if [[ -n "${ANALYST_KEY}" ]]; then
+    KEY_FILE="$(mktemp)"; chmod 600 "${KEY_FILE}"
+    printf '%s' "${ANALYST_KEY}" >"${KEY_FILE}"
+    az keyvault secret set --vault-name "${KEY_VAULT}" --name "${KV_SECRET_ANALYST_KEY}" \
+      --file "${KEY_FILE}" --output none
+    rm -f "${KEY_FILE}"
+    echo "    clave de analista derivada de '${KV_SECRET_API_KEYS}' y guardada."
+  else
+    echo "    [AVISO] no se pudo derivar la clave de analista; la consola no podrá leer casos."
+  fi
+fi
+
+CONSOLE_ENV_VARS=(
+  # `API_BASE_URL` tiene prioridad sobre NEXT_PUBLIC_API_BASE en el BFF, así que
+  # la URL real se inyecta aquí y NO se hornea en la imagen.
+  "API_BASE_URL=https://${API_FQDN}"
+  "NEXT_PUBLIC_API_BASE=https://${API_FQDN}"
+  "ANALYST_API_KEY=secretref:analyst-key"
+  "NODE_ENV=production"
+)
+
+if ! az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_CONSOLE}" &>/dev/null; then
+  az containerapp create \
+    -g "${RESOURCE_GROUP}" -n "${ACA_CONSOLE}" --environment "${ACA_ENVIRONMENT}" \
+    --image "${IMAGE_CONSOLE}:${IMAGE_TAG}" \
+    --user-assigned "${IDENTITY_ID}" \
+    "${REGISTRY_ARGS[@]+"${REGISTRY_ARGS[@]}"}" \
+    --secrets \
+      "${REGISTRY_SECRETS[@]+"${REGISTRY_SECRETS[@]}"}" \
+      "analyst-key=keyvaultref:$(kv_ref ${KV_SECRET_ANALYST_KEY}),identityref:${IDENTITY_ID}" \
+    --env-vars "${CONSOLE_ENV_VARS[@]}" \
+    --target-port 3000 --ingress external \
+    --cpu "${ACA_CPU}" --memory "${ACA_MEMORY}" \
+    --min-replicas "${ACA_API_MIN_REPLICAS}" --max-replicas "${ACA_API_MAX_REPLICAS}" \
+    --output none
+else
+  az containerapp update -g "${RESOURCE_GROUP}" -n "${ACA_CONSOLE}" \
+    --image "${IMAGE_CONSOLE}:${IMAGE_TAG}" \
+    --set-env-vars "${CONSOLE_ENV_VARS[@]}" \
+    --output none
+fi
+
+CONSOLE_FQDN="$(az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_CONSOLE}" \
+  --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)"
+
+# El navegador no llama a la API directamente (todo pasa por el BFF), pero se
+# declara el origen de la consola en CORS para que cualquier llamada de cliente
+# que se añada en el futuro no quede bloqueada silenciosamente.
+if [[ -n "${CONSOLE_FQDN}" ]]; then
+  az containerapp update -g "${RESOURCE_GROUP}" -n "${ACA_API}" \
+    --set-env-vars "CORS_ALLOWED_ORIGINS=https://${CONSOLE_FQDN}" --output none 2>/dev/null || \
+    echo "    [AVISO] no se pudo actualizar CORS de la API."
+fi
+
+# --- Resumen -----------------------------------------------------------------
 echo
 echo "=========================================================="
 echo " Despliegue en Container Apps completado"
 echo "=========================================================="
-echo "  API:    https://${API_FQDN}"
+echo "  Consola: https://${CONSOLE_FQDN}"
+echo "  API:     https://${API_FQDN}"
 echo "  Worker: ${ACA_WORKER} (escala 0→${ACA_WORKER_MAX_REPLICAS} por longitud de cola)"
 echo
 echo "  Salud:      curl https://${API_FQDN}/health"

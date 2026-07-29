@@ -1,7 +1,7 @@
-name: Contenedores (API + worker)
+name: Contenedores (API + worker + consola)
 
-# Construye y publica las imágenes de la API de ingesta y del motor de scoring
-# en GHCR (registro privado, free tier).
+# Construye y publica en GHCR las tres imágenes del sistema: la API de ingesta,
+# el motor de scoring y la consola del analista.
 #
 # Credenciales: NINGUNA almacenada. La autenticación contra GHCR usa el
 # GITHUB_TOKEN que Actions emite para esta ejecución y caduca al terminar; no
@@ -12,11 +12,13 @@ on:
     branches: ["main", "develop", "fix/**", "feature/**"]
     paths:
       - "backend/**"
+      - "frontend/**"
       - ".github/workflows/containers.yml"
       - "infra/verify-image-secrets.sh"
   pull_request:
     paths:
       - "backend/**"
+      - "frontend/**"
       - ".github/workflows/containers.yml"
       - "infra/verify-image-secrets.sh"
   workflow_dispatch:
@@ -60,8 +62,15 @@ jobs:
         include:
           - component: api
             dockerfile: backend/Dockerfile.api
+            context: backend
           - component: worker
             dockerfile: backend/Dockerfile.worker
+            context: backend
+          # La consola vive en otro arbol y tiene su propio Dockerfile, asi que
+          # el contexto de build no puede ser el mismo que el del backend.
+          - component: console
+            dockerfile: frontend/Dockerfile
+            context: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +95,7 @@ jobs:
       - name: Construir (carga local para auditar antes de publicar)
         uses: docker/build-push-action@v6
         with:
-          context: backend
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           load: true
@@ -126,7 +135,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
-          context: backend
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
