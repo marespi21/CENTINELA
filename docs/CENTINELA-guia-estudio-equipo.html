@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>CENTINELA — Guía de estudio por integrante</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; margin: 0;
+  }
+  h1 { font-size: 22pt; margin: 0 0 4pt; letter-spacing: -.4pt; }
+  h2 {
+    font-size: 14pt; margin: 26pt 0 8pt; padding-bottom: 4pt;
+    border-bottom: 2px solid #1a1a1a; page-break-after: avoid;
+  }
+  h3 { font-size: 11.5pt; margin: 14pt 0 5pt; page-break-after: avoid; }
+  h4 { font-size: 10pt; margin: 10pt 0 3pt; color: #444; page-break-after: avoid; }
+  p, ul, ol { margin: 0 0 7pt; }
+  ul, ol { padding-left: 17pt; }
+  li { margin-bottom: 2.5pt; }
+  code {
+    font-family: "SF Mono", Menlo, monospace; font-size: 8.8pt;
+    background: #f0f0f2; padding: 1pt 3pt; border-radius: 2px;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 7pt 0 11pt; font-size: 9.3pt; }
+  th, td { text-align: left; padding: 4.5pt 6pt; border-bottom: 1px solid #dcdce0; vertical-align: top; }
+  th { background: #f5f5f7; font-weight: 600; }
+  .lead { font-size: 11pt; color: #444; margin-bottom: 3pt; }
+  .meta { font-size: 8.8pt; color: #777; margin-bottom: 16pt; }
+  .persona {
+    page-break-before: always; border-left: 4px solid #1a1a1a;
+    padding-left: 11pt; margin-top: 0;
+  }
+  .persona h2 { border-bottom: none; margin-top: 0; padding-bottom: 0; font-size: 17pt; }
+  .rol { font-size: 10pt; color: #555; margin: 0 0 12pt; font-style: italic; }
+  .caja {
+    background: #f7f7f9; border-left: 3px solid #999;
+    padding: 8pt 11pt; margin: 10pt 0; font-size: 9.5pt;
+  }
+  .caja strong { display: block; margin-bottom: 3pt; }
+  .aviso { background: #fdf6e3; border-left-color: #c9a227; }
+  .pregunta { margin: 0 0 6pt; padding-left: 14pt; text-indent: -14pt; }
+  .pregunta b { font-weight: 600; }
+  .r { display: block; text-indent: 0; padding-left: 0; color: #333; margin-top: 1.5pt; }
+  .no-break { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>CENTINELA — Guía de estudio por integrante</h1>
+<p class="lead">Qué construyó cada uno, qué debe saber explicar y qué estudiar antes de la sustentación.</p>
+<p class="meta">Sistema de detección de fraude en transacciones financieras · Azure · Sprints 1–6 · Documento generado el 29 de julio de 2026</p>
+
+<div class="caja aviso">
+  <strong>Antes de usar este documento</strong>
+  El reparto se dedujo de las atribuciones que hay en el propio código y la
+  documentación (comentarios del tipo «módulo Camila», «módulo Jorge»). Puede
+  no reflejar exactamente quién hizo qué al final. <b>Revisad y corregid la
+  asignación</b> antes de repartir el estudio: es más importante que cada uno
+  domine lo que va a exponer que respetar esta deducción.
+</div>
+
+<h2>Parte común — esto lo debe saber todo el mundo</h2>
+
+<p>Cualquiera puede recibir una pregunta sobre el conjunto, no solo sobre su
+módulo. Estos cuatro puntos son obligatorios para todos.</p>
+
+<h3>1. Qué hace el sistema, en una frase</h3>
+<p>Recibe transacciones financieras, las puntúa con reglas de fraude y, cuando
+superan un umbral, abre un caso que un analista revisa en una consola web.</p>
+
+<h3>2. El flujo completo</h3>
+<table>
+  <tr><th>Paso</th><th>Qué ocurre</th><th>Dónde</th></tr>
+  <tr><td>1</td><td><code>POST /transactions</code> valida y responde <code>202</code> <b>sin esperar</b></td><td>API de ingesta</td></tr>
+  <tr><td>2</td><td>Publica un evento en la cola <code>transactions</code></td><td>Azure Queue Storage</td></tr>
+  <tr><td>3</td><td>El motor puntúa contra 4 reglas usando el historial</td><td>Worker + Cosmos DB</td></tr>
+  <tr><td>4</td><td>Si supera el umbral, publica el caso en la cola <code>cases</code></td><td>Azure Queue Storage</td></tr>
+  <tr><td>5</td><td>Se persiste el caso con su explicación</td><td>PostgreSQL</td></tr>
+  <tr><td>6</td><td>El analista lo ve y lo gestiona</td><td>Consola Next.js</td></tr>
+</table>
+
+<div class="caja">
+  <strong>La pregunta que más probablemente os harán: ¿por qué colas?</strong>
+  Porque <b>desacoplan</b>. La API responde en milisegundos sin esperar al
+  scoring, y si el motor se cae los mensajes <b>esperan en la cola</b> en vez de
+  perderse. Cuando vuelve, los procesa. Cero pérdida de casos de fraude.
+</div>
+
+<h3>3. Arquitectura limpia (Clean Architecture)</h3>
+<p>El código está en cuatro capas y <b>las dependencias apuntan siempre hacia
+adentro</b>:</p>
+<table>
+  <tr><th>Capa</th><th>Qué contiene</th><th>De qué depende</th></tr>
+  <tr><td><code>domain</code></td><td>Entidades y reglas de negocio</td><td><b>De nada</b></td></tr>
+  <tr><td><code>application</code></td><td>Casos de uso</td><td>Solo de <code>domain</code></td></tr>
+  <tr><td><code>infrastructure</code></td><td>Adaptadores: Azure, PostgreSQL…</td><td>De las interfaces de <code>domain</code></td></tr>
+  <tr><td><code>presentation</code></td><td>API HTTP y worker</td><td>Compone todo lo demás</td></tr>
+</table>
+<p><b>Por qué importa:</b> el dominio no sabe que existe Azure. Por eso se puede
+probar todo el sistema sin desplegar nada — hay adaptadores en memoria que
+sustituyen a Cosmos, PostgreSQL y las colas. Las 159 pruebas corren sin tocar la
+nube.</p>
+
+<h3>4. Seguridad: cero credenciales</h3>
+<p>Regla transversal del proyecto. <b>Ningún secreto vive en el código, el
+repositorio, el pipeline ni las imágenes de contenedor.</b> Todo está en Azure
+Key Vault y se resuelve con <i>Managed Identity</i>: Azure le da a cada servicio
+una identidad propia y los permisos justos, sin contraseñas que alguien pueda
+filtrar.</p>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Andrés — Motor de scoring y operabilidad</h2>
+<p class="rol">Reglas de fraude · Sprint 6 completo: contenedores, OCR, observabilidad, CI/CD</p>
+
+<h3>Qué construyó</h3>
+<p>El <b>motor que decide si una transacción es sospechosa</b>, y todo el Sprint 6,
+que llevó el sistema de App Service a contenedores y le añadió verificación
+documental y observabilidad.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Las cuatro reglas de fraude</h4>
+<table>
+  <tr><th>Regla</th><th>Qué detecta</th><th>Puntos</th></tr>
+  <tr><td>Velocidad</td><td>Muchas transacciones en poco tiempo</td><td>25</td></tr>
+  <tr><td>Monto atípico</td><td>Importe muy superior al histórico de la cuenta</td><td>30</td></tr>
+  <tr><td>Geo imposible</td><td>Dos compras a distancia imposible de recorrer</td><td>45</td></tr>
+  <tr><td>Comercio de riesgo</td><td>Categoría marcada como peligrosa</td><td>20</td></tr>
+</table>
+<p>Se <b>suman</b> los puntos; si el total llega al umbral (50 por defecto) se abre
+caso. El umbral es una variable de entorno: cambiarlo <b>no exige tocar código</b>.</p>
+
+<h4>Contenedores e imágenes multi-stage</h4>
+<p>Un contenedor empaqueta la aplicación con todo lo que necesita para correr.
+<i>Multi-stage</i> significa construir en una etapa y copiar a la imagen final
+solo el resultado, sin las herramientas de compilación.</p>
+<table>
+  <tr><th>Imagen</th><th>Tamaño</th><th>Reducción</th></tr>
+  <tr><td>Contenedorización ingenua</td><td>1240 MiB</td><td>—</td></tr>
+  <tr><td>API</td><td><b>174 MiB</b></td><td>−86 %</td></tr>
+  <tr><td>Worker</td><td><b>163 MiB</b></td><td>−87 %</td></tr>
+</table>
+<p><b>De dónde salen los ahorros:</b> imagen base <i>slim</i> (−1000 MiB), un
+juego de dependencias por carga (el worker no sirve HTTP, así que no lleva
+FastAPI), y no copiar herramientas de compilación al resultado final.</p>
+
+<h4>Escalado a cero con KEDA</h4>
+<p>KEDA vigila la longitud de la cola y crea réplicas del worker cuando hay
+mensajes. Sin trabajo <b>baja a cero réplicas y no cuesta nada</b>. El precio es
+el arranque en frío: el primer mensaje tarda ~60 s en procesarse.</p>
+
+<h4>Verificación documental (OCR)</h4>
+<p>El cliente adjunta el comprobante; Azure Document Intelligence extrae importe,
+fecha y comercio, y el sistema los <b>contrasta con la transacción</b>. Cuatro
+veredictos: <code>coincide</code>, <code>discrepa</code>,
+<code>insuficiente</code>, <code>ilegible</code>.</p>
+
+<div class="caja">
+  <strong>Decisión que hay que saber defender</strong>
+  <b>El comercio no decide el veredicto</b>, solo el importe y la fecha. La
+  transacción guarda un identificador opaco (<code>m1</code>), no un nombre
+  comercial. Si el comercio contara, un ticket real de «Supermercado Los Andes»
+  nunca coincidiría con <code>m1</code> y el sistema marcaría como fraude
+  cualquier comprobante legítimo.
+</div>
+
+<h4>Trazado distribuido</h4>
+<p>El problema: la API abría una traza y el worker otra, sin relación. No se podía
+responder «¿por qué este caso tardó 4 minutos?». La solución: el identificador de
+traza <b>viaja dentro del mensaje de la cola</b>, así que un solo
+<code>trace_id</code> recorre API → cola → worker → base de datos.</p>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>docs/fraud_scoring.md</code> — el motor y sus reglas</li>
+  <li><code>docs/container-optimization.md</code> — el reporte de optimización, con la metodología de medición</li>
+  <li><code>docs/document-verification.md</code> — OCR y veredictos</li>
+  <li><code>docs/observability.md</code> — trazado distribuido y métricas</li>
+  <li><code>DEPLOY.md</code> — cómo se levanta todo el sistema</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Por qué contenedores y no App Service?</b>
+<span class="r">Portabilidad, escalado a cero (coste cero sin uso) y reproducibilidad: la imagen es idéntica en local y en producción.</span></p>
+<p class="pregunta"><b>— ¿Cómo se sabe que no hay secretos en las imágenes?</b>
+<span class="r">Hay un auditor que revisa <b>todas las capas</b>, no solo el resultado final — un secreto borrado en una capa posterior sigue siendo recuperable. Además tiene un autotest que construye una imagen con un secreto filtrado y comprueba que la auditoría la rechaza.</span></p>
+<p class="pregunta"><b>— ¿Qué pasa si el OCR no lee el documento?</b>
+<span class="r">Veredicto <code>ilegible</code>, que es un <b>resultado</b>, no un error: no se reintenta, porque daría lo mismo y gastaría cuota gratuita. Distinto de que el servicio esté caído, que sí se reintenta.</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Camila — Mensajería y almacén de transacciones</h2>
+<p class="rol">Colas, desacoplamiento y persistencia del historial en Cosmos DB</p>
+
+<h3>Qué construyó</h3>
+<p>La <b>mensajería que desacopla</b> la API del motor de scoring, y el historial
+de transacciones en Cosmos DB que el motor consulta para decidir.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Por qué colas y no llamadas directas</h4>
+<p>Si la API llamara al motor directamente, tendría que <b>esperar</b> a que
+terminara, y si el motor estuviera caído la transacción <b>se perdería</b>. Con
+cola, la API responde <code>202 Accepted</code> en milisegundos y el mensaje
+espera hasta que alguien lo procese.</p>
+
+<h4>Garantía de entrega «al menos una vez»</h4>
+<p>Azure Queue Storage garantiza que un mensaje se entrega <b>al menos</b> una
+vez — puede entregarse dos. Por eso el sistema debe ser <b>idempotente</b>:
+procesar el mismo mensaje dos veces no puede duplicar un caso. Se resuelve con
+<code>ON CONFLICT DO UPDATE</code> en la base de datos.</p>
+
+<div class="caja">
+  <strong>Cómo funciona el borrado de mensajes (clave para explicar la resiliencia)</strong>
+  Al leer un mensaje <b>no se borra</b>: queda oculto un tiempo (<i>visibility
+  timeout</i>). Solo se borra si el procesamiento fue bien. Si falla, reaparece y
+  se reintenta. Tras varios intentos fallidos va a una <b>cola «poison»</b>, para
+  que un mensaje corrupto no bloquee la cola para siempre.
+</div>
+
+<h4>Cosmos DB y la clave de partición</h4>
+<p>Cosmos es una base NoSQL. La <b>clave de partición</b> determina cómo se
+reparten los datos. Aquí es <code>/accountId</code>, y no es casualidad: el motor
+siempre consulta «las transacciones de esta cuenta», así que la consulta toca
+<b>una sola partición</b> — rápida y barata.</p>
+<p class="caja"><b>Ojo:</b> la clave de partición <b>no se puede cambiar</b> tras crear el
+contenedor. Es una decisión de diseño irreversible.</p>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>docs/messaging.md</code> — colas y desacoplamiento</li>
+  <li><code>docs/nosql.md</code> — Cosmos DB y particionado</li>
+  <li><code>docs/architecture.md</code> — encaje general</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Qué pasa si el motor de scoring se cae?</b>
+<span class="r">Nada se pierde. Los mensajes se acumulan en la cola y se procesan cuando vuelve. Es la diferencia entre una arquitectura acoplada y una desacoplada.</span></p>
+<p class="pregunta"><b>— ¿Por qué NoSQL y no SQL para las transacciones?</b>
+<span class="r">Volumen alto, escritura constante y consultas siempre por cuenta. No hacen falta relaciones complejas. Los <b>casos</b> sí van en PostgreSQL, porque ahí sí hay relaciones y auditoría.</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Jorge — Infraestructura y worker</h2>
+<p class="rol">Despliegue automatizado, motor como servicio en segundo plano, integración</p>
+
+<h3>Qué construyó</h3>
+<p>Los <b>scripts que levantan todo el sistema en Azure</b> y el worker que
+procesa las colas en segundo plano.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Infraestructura como código</h4>
+<p>Toda la infraestructura se crea con scripts, <b>ningún clic en el portal</b>.
+Ventajas: es reproducible, está versionada, y cualquiera puede levantar el sistema
+entero. Los scripts son <b>idempotentes</b>: ejecutarlos varias veces no rompe
+nada, porque comprueban si el recurso ya existe.</p>
+
+<div class="caja">
+  <strong>Lección real del proyecto</strong>
+  Un fallo costó tiempo por confundir «el recurso <b>existe</b>» con «el recurso
+  <b>sirve</b>». Un intento fallido dejó un entorno a medio crear; el reintento lo
+  dio por bueno y se quedó esperando algo que nunca iba a funcionar. Ahora se
+  comprueba también el <i>estado</i>, no solo la existencia.
+</div>
+
+<h4>El worker: de Azure Functions a contenedor</h4>
+<p>El motor corría como Azure Function (se activa sola al llegar un mensaje). Al
+contenedorizar se reescribió como proceso autónomo, porque la imagen base de
+Functions pesa más de 1 GB. Hubo que <b>reponer a mano</b> lo que el host daba
+gratis: reintento, cola <i>poison</i> y apagado limpio al recibir la señal de
+parada.</p>
+
+<h4>Managed Identity</h4>
+<p>En vez de guardar contraseñas, Azure le da a cada servicio una <b>identidad</b>
+y se le conceden permisos sobre los recursos que necesita. Sin contraseñas no hay
+nada que filtrar ni que rotar.</p>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>DEPLOY.md</code> — el paso a paso completo, con los fallos reales encontrados</li>
+  <li><code>docs/deployment-guide.md</code> — guía de despliegue</li>
+  <li><code>infra/deploy-all.sh</code> y <code>infra/containerapps.sh</code> — leer los comentarios, explican el porqué</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Cuánto se tarda en levantar el sistema desde cero?</b>
+<span class="r">40–60 minutos, casi todo esperando a Azure. PostgreSQL y el entorno de contenedores son lo más lento.</span></p>
+<p class="pregunta"><b>— ¿Qué pasa si un despliegue falla a mitad?</b>
+<span class="r">Se vuelve a lanzar: los scripts son idempotentes y retoman donde estaban. Pero hay que borrar recursos que quedaron a medio crear, porque «existe» no es lo mismo que «funciona».</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Juan José — Gestión de casos y consola</h2>
+<p class="rol">Almacén relacional, auditoría inmutable, interfaz del analista, red</p>
+
+<h3>Qué construyó</h3>
+<p>La <b>base de datos de casos</b> con su auditoría, y la <b>consola web</b> donde
+el analista los revisa, asigna y resuelve.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Por qué PostgreSQL para los casos</h4>
+<p>Los casos tienen <b>relaciones</b> (caso → asignaciones → resoluciones →
+auditoría) y exigen <b>consistencia transaccional</b>: crear un caso y su
+explicación debe ser atómico. Eso es exactamente para lo que sirve una base
+relacional. Las transacciones, en cambio, van a NoSQL por volumen.</p>
+
+<h4>Auditoría inmutable</h4>
+<p>La tabla de auditoría tiene un <i>trigger</i> que <b>impide modificar o borrar
+filas</b>: solo se puede insertar. En un sistema antifraude esto es
+imprescindible — si alguien pudiera alterar el registro, no valdría como prueba.</p>
+
+<h4>Explicaciones append-only</h4>
+<p>Las explicaciones tampoco se sobrescriben: se <b>añade</b> una versión nueva y
+la lectura toma la más reciente. Así queda traza de lo que se dijo primero. Esto
+es lo que permitió añadir el enriquecimiento asíncrono sin tocar la lectura.</p>
+
+<h4>El patrón BFF de la consola</h4>
+<p><i>Backend for Frontend</i>: el navegador <b>nunca habla directamente con la
+API</b>. Habla con el servidor de Next.js, que añade la clave de analista y llama
+a la API. Así <b>la clave nunca llega al navegador</b>, donde cualquiera podría
+verla con las herramientas de desarrollo.</p>
+
+<div class="caja">
+  <strong>Esto se verificó en el despliegue real</strong>
+  Se comprobó que ni la clave ni su nombre aparecen en el HTML servido. Fue
+  también la razón de desplegar la consola como contenedor y no como sitio
+  estático: un sitio estático no tiene servidor donde esconder la clave.
+</div>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>docs/cases_store_spec.md</code> — modelo de datos de casos</li>
+  <li><code>docs/explainability.md</code> — cómo se explica una decisión</li>
+  <li><code>docs/network.md</code> y <code>README_NETWORKING.md</code> — red</li>
+  <li><code>scripts/init-cases-db.sql</code> — el esquema, con sus triggers</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Por qué dos bases de datos distintas?</b>
+<span class="r">Cada una para lo que hace bien: NoSQL para volumen alto de transacciones con consultas simples por cuenta; relacional para casos, que tienen relaciones y exigen auditoría y consistencia.</span></p>
+<p class="pregunta"><b>— ¿Cómo se garantiza que nadie manipule la auditoría?</b>
+<span class="r">Un trigger a nivel de base de datos bloquea <code>UPDATE</code> y <code>DELETE</code>. Ni siquiera la aplicación puede alterarla: la protección está en la base, no en el código.</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Lukas — Seguridad</h2>
+<p class="rol">Autenticación, autorización, Key Vault, rate limiting</p>
+
+<h3>Qué construyó</h3>
+<p>Todo lo que impide que cualquiera use la API, y el sistema que mantiene los
+secretos fuera del código.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Autenticación por API key con roles</h4>
+<p>Cada petición lleva una cabecera <code>X-API-Key</code>. Hay dos roles:
+<b>servicio</b> (puede enviar transacciones) y <b>administrador</b> (además puede
+listar y gestionar casos). Las claves <b>no están en el código</b>: viven en Key
+Vault.</p>
+
+<h4>Azure Key Vault y Managed Identity</h4>
+<p>Key Vault es la caja fuerte. La aplicación no lleva la contraseña de Key Vault
+— eso solo movería el problema. Usa <b>Managed Identity</b>: Azure la reconoce
+por su identidad y le entrega los secretos. <b>No hay ninguna contraseña en
+ninguna parte.</b></p>
+
+<h4>Rate limiting</h4>
+<p>Limita cuántas peticiones acepta por IP en una ventana de tiempo (10/minuto por
+defecto). Protege de abuso y de ataques de denegación de servicio.</p>
+
+<div class="caja">
+  <strong>Un fallo real que enseña por qué importa el detalle</strong>
+  Al contenedorizar, la plataforma sondea <code>/health</code> cada pocos segundos
+  desde la misma IP. Con el límite por defecto, esas sondas lo agotaban, recibían
+  <code>429</code> y la plataforma <b>reiniciaba en bucle un contenedor sano</b>.
+  Se exceptuaron las rutas de sonda — el resto sigue protegido, y hay una prueba
+  que lo verifica.
+</div>
+
+<h4>Defensa en profundidad en las imágenes</h4>
+<p>Los contenedores corren como <b>usuario sin privilegios</b> (no root) y se les
+<b>quita el gestor de paquetes</b>: si alguien lograra ejecutar código dentro, no
+podría instalar herramientas ni tendría permisos de administrador.</p>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>docs/security.md</code> — modelo de seguridad completo</li>
+  <li><code>docs/api_contract.md</code> — contrato y autenticación</li>
+  <li><code>infra/security.sh</code> — cómo se cablean los secretos</li>
+  <li><code>infra/verify-image-secrets.sh</code> — la auditoría de imágenes</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Dónde están las contraseñas?</b>
+<span class="r">En Azure Key Vault. La aplicación accede con Managed Identity, así que no necesita ninguna contraseña para obtenerlas. Es la respuesta al problema clásico de «¿y quién guarda la llave de la caja fuerte?».</span></p>
+<p class="pregunta"><b>— ¿Cómo saben que no se ha filtrado ningún secreto?</b>
+<span class="r">Hay una auditoría automática en el pipeline que revisa todas las capas de cada imagen y bloquea la publicación si encuentra algo. Y se verifica a sí misma: construye una imagen con un secreto filtrado y comprueba que la detecta.</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Santiago (Chanti) — Datos y costos</h2>
+<p class="rol">Diseño del almacén NoSQL, control de presupuesto, elección de región</p>
+
+<h3>Qué construyó</h3>
+<p>El diseño del almacén de transacciones en Cosmos DB y el <b>control de costos</b>
+del proyecto.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Capacidad en Cosmos DB (RU/s)</h4>
+<p>Cosmos no cobra por consultas sino por <b>Request Units</b>: una unidad de
+trabajo. Se aprovisionan 400 RU/s, que caben enteras en la capa gratuita
+(1000 RU/s). Una consulta mal diseñada —que recorra varias particiones— consume
+muchas más RU y <b>cuesta más dinero</b>. Por eso la clave de partición importa.</p>
+
+<h4>TTL: borrado automático</h4>
+<p>Los documentos caducan a los 90 días. Es deliberado: la regla de fraude con
+ventana más amplia mira 90 días atrás, así que guardar más sería pagar por datos
+que nadie consulta.</p>
+
+<h4>Capas gratuitas usadas</h4>
+<table>
+  <tr><th>Servicio</th><th>Capa gratuita</th></tr>
+  <tr><td>Cosmos DB</td><td>1000 RU/s + 25 GB</td></tr>
+  <tr><td>Container Apps</td><td>180 000 vCPU-s/mes (~200 h de una réplica)</td></tr>
+  <tr><td>Document Intelligence</td><td>F0: 500 páginas/mes</td></tr>
+  <tr><td>Log Analytics</td><td>5 GB/mes</td></tr>
+  <tr><td>GHCR (imágenes)</td><td>Gratis con paquetes públicos</td></tr>
+</table>
+
+<div class="caja">
+  <strong>Dato honesto que conviene tener a mano</strong>
+  El único recurso que cuesta de verdad es <b>PostgreSQL</b>, que está encendido
+  24/7. Los contenedores cuestan prácticamente cero gracias al escalado a cero.
+  Se puede parar la base hasta 7 días para contener gasto, pero el sistema deja de
+  funcionar mientras tanto.
+</div>
+
+<h4>Elección de región</h4>
+<p>No es arbitraria: influye en latencia, coste y <b>disponibilidad de servicios</b>.
+En este proyecto fue un problema real — PostgreSQL no se podía crear en varias
+regiones por restricciones de la suscripción, y una región llegó a rechazar la
+creación del entorno de contenedores <b>por falta de capacidad</b>.</p>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>docs/nosql.md</code> — diseño de Cosmos</li>
+  <li><code>docs/credit-report-nosql.md</code> — consumo y costos</li>
+  <li><code>docs/region_justification.md</code> — elección de región</li>
+  <li><code>docs/container-optimization.md</code> §5 — costos del despliegue en contenedores</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Cuánto cuesta mantener esto?</b>
+<span class="r">Casi todo está en capas gratuitas. El gasto real es PostgreSQL. Los contenedores escalan a cero: sin uso, no cuestan.</span></p>
+<p class="pregunta"><b>— ¿Qué pasa si el volumen crece mucho?</b>
+<span class="r">Cosmos y Container Apps escalan solos; habría que subir las RU/s aprovisionadas y el máximo de réplicas. El diseño ya lo contempla: son variables de configuración.</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Samuel — Almacenamiento de documentos</h2>
+<p class="rol">Blob Storage, subida de comprobantes, acceso temporal seguro</p>
+
+<h3>Qué construyó</h3>
+<p>El almacenamiento de los <b>comprobantes</b> que se adjuntan a un caso y el
+mecanismo para consultarlos de forma segura.</p>
+
+<h3>Conceptos que debe dominar</h3>
+
+<h4>Por qué Blob Storage y no la base de datos</h4>
+<p>Los ficheros binarios (PDF, imágenes) no van en una base de datos: la
+encarecen y la ralentizan. Van a Blob Storage, y en la base solo se guarda la
+<b>referencia</b>.</p>
+
+<h4>URLs temporales (SAS)</h4>
+<p>El contenedor de blobs es <b>privado</b>. Para que el analista vea un documento
+se genera una <b>URL firmada que caduca</b> (5 minutos). Si esa URL se filtrara,
+en minutos deja de servir. Es mucho mejor que hacer público el contenedor.</p>
+
+<h4>Validación de subida</h4>
+<p>Antes de aceptar un fichero se comprueba <b>tipo</b> (solo PDF, PNG, JPEG) y
+<b>tamaño</b> (máximo 5 MB). Sin esas validaciones, cualquiera podría subir un
+ejecutable o llenar el almacenamiento.</p>
+
+<h4>Encadenado con la verificación documental</h4>
+<p>Al subir un documento se publica un evento en la cola <code>documents</code>.
+El worker lo recoge, descarga el fichero, lo pasa por OCR y contrasta los datos
+con la transacción. El almacenamiento es <b>el punto de entrada</b> de esa cadena.</p>
+
+<h3>Documentos que debe estudiar</h3>
+<ul>
+  <li><code>docs/storage.md</code> — almacenamiento de documentos</li>
+  <li><code>docs/document-verification.md</code> — qué ocurre después de subir</li>
+  <li><code>docs/security.md</code> — la parte de acceso temporal</li>
+</ul>
+
+<h3>Preguntas probables</h3>
+<p class="pregunta"><b>— ¿Cómo se protege el acceso a los documentos?</b>
+<span class="r">El contenedor es privado y el acceso va por URL firmada con caducidad de 5 minutos. No hay ninguna URL permanente que pueda filtrarse.</span></p>
+<p class="pregunta"><b>— ¿Por qué una cola al subir un documento?</b>
+<span class="r">Porque el OCR es lento. Sin cola, quien sube el fichero esperaría a que se analizara. Con cola, la respuesta es inmediata y el análisis ocurre después.</span></p>
+</div>
+
+<!-- ==================================================================== -->
+<div class="persona">
+<h2>Consejos para la sustentación</h2>
+
+<h3>Lo que suele marcar diferencia</h3>
+<ul>
+  <li><b>Explicar el porqué, no el qué.</b> «Usamos colas» dice poco; «usamos colas
+  porque si el motor se cae los casos de fraude no se pierden» demuestra criterio.</li>
+  <li><b>Conocer las decisiones y sus renuncias.</b> Toda decisión tuvo un coste.
+  Escalado a cero: barato, pero con arranque en frío. NoSQL: rápido y escalable,
+  pero sin relaciones.</li>
+  <li><b>Poder enseñarlo funcionando.</b> El sistema está desplegado: se puede
+  enviar una transacción y ver aparecer el caso en la consola.</li>
+</ul>
+
+<h3>Ser honestos con lo que no está terminado</h3>
+<p>Un profesor valora más que reconozcáis un límite a que os pille en una
+afirmación falsa. Lo que <b>no</b> está cerrado:</p>
+<ul>
+  <li>El <b>enriquecedor de explicaciones</b> tiene toda la tubería construida y
+  probada, pero falta decidir el servicio que redactará el texto.</li>
+  <li>El <b>despliegue automático desde el pipeline</b> está implementado pero no
+  activado: requiere una configuración de identidad que se decidió no hacer. El
+  despliegue es manual, aunque totalmente automatizado en scripts.</li>
+  <li>Las <b>trazas no se ven en el portal de Application Insights</b> porque el
+  agente gestionado de Azure no las acepta. Se siguen consultando por
+  <code>trace_id</code> en los registros.</li>
+</ul>
+
+<h3>Demostración en vivo sugerida (5 minutos)</h3>
+<ol>
+  <li>Abrir la consola y mostrar la bandeja de casos.</li>
+  <li>Enviar una transacción sospechosa desde la terminal → responde <code>202</code> al instante.</li>
+  <li>Explicar mientras tanto qué está pasando: cola → worker → reglas → caso.</li>
+  <li>Refrescar la consola: aparece el caso con su explicación.</li>
+  <li>Abrir un caso con comprobante y mostrar el veredicto del OCR.</li>
+</ol>
+<p class="caja"><b>Aviso para la demo:</b> si el sistema lleva rato sin uso, la primera
+petición tarda unos segundos porque los contenedores están a cero réplicas.
+<b>No es un fallo, es el ahorro de coste funcionando</b> — y explicarlo así suma.</p>
+</div>
+
+</body>
+</html>
