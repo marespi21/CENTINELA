@@ -37,6 +37,9 @@ class Settings:
     )
     # Cola durable de casos (scoring → gestión de casos).
     cases_queue: str = os.getenv("CASES_QUEUE", "cases")
+    # Cola de enriquecimiento de explicaciones (Sprint 6, Fase 4). El caso ya
+    # está abierto cuando se publica aquí: nada de esto retrasa la detección.
+    explanations_queue: str = os.getenv("EXPLANATIONS_QUEUE", "explanations")
     max_document_mb: int = int(os.getenv("MAX_DOCUMENT_MB", "5"))
     allowed_document_types: str = os.getenv(
         "ALLOWED_DOCUMENT_TYPES",

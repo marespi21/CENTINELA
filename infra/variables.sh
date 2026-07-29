@@ -31,6 +31,9 @@ FUNCTION_APP=func-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
 QUEUE_NAME=transactions
 DOCUMENTS_QUEUE=documents
 CASES_QUEUE=cases
+# Enriquecimiento asíncrono de explicaciones (Sprint 6, Fase 4). El caso ya está
+# abierto cuando se publica aquí: nada de esto entra en el camino crítico.
+EXPLANATIONS_QUEUE=explanations
 BLOB_CONTAINER=documents
 
 # App Service SKU (F1 = Free; B1+ requiere cuota y es necesario para VNet integration)

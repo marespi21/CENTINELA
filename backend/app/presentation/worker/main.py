@@ -44,6 +44,7 @@ from app.infrastructure.observability.telemetry import (
 )
 from app.presentation.worker.composition import (
     azure_configured,
+    build_enrich_explanation_use_case,
     build_persist_case_use_case,
     build_score_use_case,
     build_verify_document_use_case,
@@ -96,6 +97,11 @@ _documents_verified = get_counter(
     "centinela.documentos",
     "centinela.documentos.verificados",
     "Documentos verificados, por veredicto",
+)
+_explanations_enriched = get_counter(
+    "centinela.fraude",
+    "centinela.explicaciones.enriquecidas",
+    "Explicaciones enriquecidas fuera del camino crítico",
 )
 _end_to_end_latency = get_histogram(
     "centinela.fraude",
@@ -298,6 +304,11 @@ def build_pumps(config: WorkerConfig) -> list[QueuePump]:
                 verification.summary,
             )
 
+    def handle_explanation(content: str) -> None:
+        enriched = build_enrich_explanation_use_case().execute(content)
+        if enriched is not None:
+            _explanations_enriched.add(1)
+
     return [
         QueuePump(
             settings.transactions_queue, consumer_for(settings.transactions_queue),
@@ -312,6 +323,12 @@ def build_pumps(config: WorkerConfig) -> list[QueuePump]:
         QueuePump(
             settings.documents_queue, consumer_for(settings.documents_queue),
             handle_document, config,
+        ),
+        # Cola `explanations`: el caso YA está abierto y visible cuando llega
+        # aquí, así que nada de esto entra en el camino crítico de detección.
+        QueuePump(
+            settings.explanations_queue, consumer_for(settings.explanations_queue),
+            handle_explanation, config,
         ),
     ]
 

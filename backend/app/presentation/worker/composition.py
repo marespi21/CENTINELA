@@ -16,8 +16,10 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.application.services.rule_based_explainer import RuleBasedExplainer
 from app.application.services.null_document_analyzer import NullDocumentAnalyzer
+from app.application.services.null_explanation_enricher import NullExplanationEnricher
+from app.application.services.rule_based_explainer import RuleBasedExplainer
+from app.application.use_cases.enrich_explanation import EnrichExplanationUseCase
 from app.application.use_cases.persist_opened_case import PersistOpenedCaseUseCase
 from app.application.use_cases.score_transaction import ScoreTransactionUseCase
 from app.application.use_cases.verify_document import VerifyDocumentUseCase
@@ -25,17 +27,28 @@ from app.domain.repositories.blob_storage import BlobStorage
 from app.domain.repositories.case_document_write_repository import (
     CaseDocumentWriteRepository,
 )
+from app.domain.repositories.case_explanation_repository import (
+    CaseExplanationRepository,
+)
 from app.domain.repositories.case_queue import CaseQueue
 from app.domain.repositories.case_read_repository import CaseReadRepository
 from app.domain.repositories.case_write_repository import CaseWriteRepository
 from app.domain.repositories.document_analyzer import DocumentAnalyzer
+from app.domain.repositories.explanation_queue import ExplanationQueue
 from app.domain.repositories.score_repository import ScoreRepository
 from app.domain.repositories.transaction_history_repository import (
     TransactionHistoryRepository,
 )
 from app.domain.services.document_verifier import DocumentVerifier
+from app.domain.services.explanation_enricher import ExplanationEnricher
 from app.infrastructure.config.settings import settings
 from app.infrastructure.messaging.in_memory_case_queue import InMemoryCaseQueue
+from app.infrastructure.messaging.in_memory_explanation_queue import (
+    InMemoryExplanationQueue,
+)
+from app.infrastructure.repositories.in_memory_case_explanation_repository import (
+    InMemoryCaseExplanationRepository,
+)
 from app.infrastructure.repositories.in_memory_blob_storage import InMemoryBlobStorage
 from app.infrastructure.repositories.in_memory_case_document_write_repository import (
     InMemoryCaseDocumentWriteRepository,
@@ -137,10 +150,64 @@ def build_score_use_case() -> ScoreTransactionUseCase:
     )
 
 
+def build_explanation_queue() -> ExplanationQueue:
+    """Cola de enriquecimiento: Azure si hay Storage; si no, memoria."""
+    if azure_configured():
+        from app.infrastructure.azure.explanation_queue import AzureExplanationQueue
+
+        return AzureExplanationQueue(
+            queue_name=settings.explanations_queue,
+            connection_string=settings.storage_connection_string or None,
+            account_url=settings.queue_endpoint or None,
+        )
+    return InMemoryExplanationQueue()
+
+
 @lru_cache(maxsize=1)
 def build_persist_case_use_case() -> PersistOpenedCaseUseCase:
-    """Consumidor de la cola `cases` (módulo Camila)."""
-    return PersistOpenedCaseUseCase(build_case_write_repository())
+    """Consumidor de la cola `cases` (módulo Camila).
+
+    Desde la Fase 4 dispara además el enriquecimiento asíncrono de la
+    explicación, ya con el caso persistido y visible.
+    """
+    return PersistOpenedCaseUseCase(
+        build_case_write_repository(),
+        explanation_queue=build_explanation_queue(),
+    )
+
+
+# --- Explicador asíncrono (Sprint 6, Fase 4) ---------------------------------
+
+
+def build_explanation_enricher() -> ExplanationEnricher:
+    """Composition root del enriquecedor.
+
+    Pendiente del servicio que se decida: hoy devuelve el adaptador nulo, con
+    el que la tubería asíncrona completa (cola, consumidor, persistencia
+    append-only) funciona y se prueba sin depender de ningún proveedor.
+    """
+    return NullExplanationEnricher()
+
+
+def build_case_explanation_repository() -> CaseExplanationRepository:
+    if settings.cases_db_configured:
+        from app.infrastructure.postgres.pg_case_explanation_repository import (
+            PgCaseExplanationRepository,
+        )
+
+        return PgCaseExplanationRepository(dsn=settings.cases_db_dsn)
+    return InMemoryCaseExplanationRepository()
+
+
+@lru_cache(maxsize=1)
+def build_enrich_explanation_use_case() -> EnrichExplanationUseCase:
+    """Consumidor de la cola `explanations`."""
+    return EnrichExplanationUseCase(
+        cases=build_case_read_repository(),
+        explanations=build_case_explanation_repository(),
+        enricher=build_explanation_enricher(),
+        history=build_history_repository(),
+    )
 
 
 # --- Verificación documental (Sprint 6, Fase 2) ------------------------------

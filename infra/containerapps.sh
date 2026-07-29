@@ -297,6 +297,7 @@ WORKER_ENV_VARS=(
   "TRANSACTIONS_QUEUE=${QUEUE_NAME}"
   "CASES_QUEUE=${CASES_QUEUE}"
   "DOCUMENTS_QUEUE=${DOCUMENTS_QUEUE}"
+  "EXPLANATIONS_QUEUE=${EXPLANATIONS_QUEUE}"
   "BLOB_CONTAINER=${BLOB_CONTAINER}"
   "DOC_INTELLIGENCE_ENDPOINT=${DI_ENDPOINT}"
   "DOC_INTELLIGENCE_MODEL=${DOC_INTELLIGENCE_MODEL}"
@@ -332,7 +333,7 @@ fi
 # Regla KEDA: una réplica más por cada ACA_QUEUE_LENGTH mensajes pendientes.
 # La autenticación del scaler va por la misma Managed Identity, así que tampoco
 # aquí hace falta una connection string de storage.
-for QUEUE in "${QUEUE_NAME}" "${CASES_QUEUE}" "${DOCUMENTS_QUEUE}"; do
+for QUEUE in "${QUEUE_NAME}" "${CASES_QUEUE}" "${DOCUMENTS_QUEUE}" "${EXPLANATIONS_QUEUE}"; do
   az containerapp update -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" \
     --scale-rule-name "${QUEUE}-scaler" \
     --scale-rule-type azure-queue \
