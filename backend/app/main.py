@@ -20,6 +20,7 @@ from app.domain.exceptions.transaction_exceptions import (
     InvalidTransactionError,
 )
 from app.infrastructure.config.settings import settings
+from app.infrastructure.observability.logging_setup import configure_logging
 from app.infrastructure.observability.telemetry import (
     instrument_fastapi,
     setup_telemetry,
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
 
     # Telemetría antes que nada: si hay colector OTLP configurado (Container
     # Apps), instrumenta las rutas; sin él es un no-op y la app arranca igual.
+    configure_logging("centinela-api")
     setup_telemetry("centinela-api", API_VERSION)
     instrument_fastapi(app)
 

@@ -124,6 +124,23 @@ def get_counter(meter_name: str, counter_name: str, description: str) -> Any:
     )
 
 
+def get_histogram(
+    meter_name: str, histogram_name: str, description: str, unit: str = "ms"
+) -> Any:
+    """Histograma real si hay telemetría; si no, uno inerte (API idéntica).
+
+    Para latencias se prefiere histograma antes que un contador con media: la
+    media esconde justo lo que interesa mirar, que es la cola de percentiles.
+    """
+    try:
+        from opentelemetry import metrics
+    except ImportError:  # pragma: no cover - depende de la imagen
+        return _NoopHistogram()
+    return metrics.get_meter(meter_name).create_histogram(
+        histogram_name, description=description, unit=unit
+    )
+
+
 class _NoopSpan:
     def __enter__(self) -> _NoopSpan:
         return self
@@ -148,4 +165,9 @@ class _NoopTracer:
 
 class _NoopCounter:
     def add(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
+
+class _NoopHistogram:
+    def record(self, *_args: object, **_kwargs: object) -> None:
         return None
