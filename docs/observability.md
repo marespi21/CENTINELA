@@ -96,34 +96,51 @@ Consultas guardadas para investigar: traza completa por `trace_id`, casos por
 ventana de tiempo, reparto de veredictos documentales y ranking de reglas más
 activadas.
 
-## 5b. Métricas: el agente de Container Apps no las acepta
+## 5b. El agente OTel de Container Apps no acepta nada (y qué se hizo)
 
-Descubierto desplegando, no leyendo documentación. El agente OTel gestionado del
-entorno reenvía **trazas y logs** a Application Insights, pero **no métricas**:
-al exportarlas contra él responde con `Connection reset by peer`, y el SDK entra
-en un bucle de reintentos que quema CPU y ahoga los logs de la aplicación con
-avisos.
+Descubierto desplegando, no leyendo documentación. El agente gestionado del
+entorno queda **declarado** para trazas y logs —`enableOpenTelemetryTraces: true`,
+destino `appInsights`— pero **no acepta ninguna de las dos**: responde
+`Connection reset by peer` y el SDK entra en un bucle de reintentos que quema
+CPU sin exportar una sola traza.
 
 ```
-opentelemetry.exporter.otlp.proto.http.metric_exporter
+opentelemetry.exporter.otlp.proto.http.trace_exporter
   Transient error ('Connection aborted.', ConnectionResetError(104, ...))
-  Failed to export metrics batch due to timeout, max retries or shutdown.
 ```
 
-La solución respeta la convención estándar: `setup_telemetry` honra
-`OTEL_METRICS_EXPORTER`, y el despliegue pone `OTEL_METRICS_EXPORTER=none` en
-ambos contenedores. Las trazas siguen activas; los contadores e histogramas se
-instancian igual pero no se exportan.
+La causa es que su cadena de conexión a Application Insights **nunca llega a
+aplicarse**. Se intentó por tres vías, todas sin error aparente y sin efecto:
 
-Para recuperarlos hay que darles un destino que sí los acepte: un colector OTLP
-propio, o Datadog, ambos soportados por el agente. Mientras tanto, la
-observabilidad operativa se apoya en trazas y en los logs estructurados, que sí
-llegan.
+| Vía | Resultado |
+|---|---|
+| `az containerapp env telemetry app-insights set` (×2) | acepta el comando, no aplica nada |
+| ARM `PATCH` con `api-version=2024-03-01` | rechaza: «Unknown properties appInsightsConfiguration» |
+| ARM `PATCH` con `api-version=2025-01-01` | acepta, sigue sin aplicar |
 
-> **Cuidado con `appInsightsConfiguration.connectionString`.** Al leerlo, Azure
-> devuelve siempre `null` aunque esté configurado. No sirve para verificar nada:
-> la única señal fiable de que el agente está bien conectado es que dejen de
-> aparecer errores del exportador en los logs del contenedor.
+> **`appInsightsConfiguration.connectionString` devuelve siempre `null` al
+> leerlo**, esté configurado o no. No sirve para verificar. La única señal
+> fiable es si aparecen o no errores del exportador en los logs del contenedor
+> — y ojo, **sin tráfico no hay spans que exportar, así que la ausencia de
+> errores durante un rato de calma no significa que funcione**. Esa confusión
+> costó un diagnóstico equivocado antes de comprobarlo con tráfico real.
+
+### La decisión: desactivar la exportación, NO el trazado
+
+`setup_telemetry` honra ahora `OTEL_TRACES_EXPORTER` y `OTEL_METRICS_EXPORTER`
+(convención estándar de OpenTelemetry), y el despliegue pone ambos a `none`.
+
+La distinción importa: se siguen creando spans y, sobre todo, **se siguen
+generando y propagando los `trace_id`**. Eso es lo que da valor real hoy —
+seguir una petición de la API al worker a través de la cola mirando los logs—
+y funciona sin depender del agente. Lo único que se pierde es la vista de
+cascada del portal.
+
+Para recuperar la exportación hay dos caminos: darle un destino que sí acepte
+(colector OTLP propio o Datadog, ambos soportados por el agente), o saltarse el
+agente exportando directamente con `azure-monitor-opentelemetry-exporter`, lo
+que exige meter la cadena de conexión en el contenedor —desde Key Vault, no en
+la imagen—.
 
 ## 6. Coste
 
@@ -152,9 +169,35 @@ bash infra/observability.sh
 Requiere que `infra/containerapps.sh` haya creado antes el workspace de Log
 Analytics y el Application Insights.
 
-## 9. Estado
+## 9. Estado — **trazado distribuido validado en producción** (2026-07-29)
 
-Implementado y probado (147 tests). **No validado contra Azure todavía**: las
-trazas de punta a punta solo pueden comprobarse de verdad con los contenedores
-desplegados y el agente OTel activo, y el despliegue sigue pendiente de que los
-paquetes de GHCR pasen a públicos.
+La propagación de contexto a través de las colas **funciona en Azure**, y está
+verificada con datos reales: hay múltiples `trace_id` que aparecen en los logs
+de **ambos contenedores a la vez**, lo que solo puede pasar si el contexto cruzó
+la cola.
+
+Recorrido real de `c2673e18f6d58ef78950d753785296c6`:
+
+| Hora | Contenedor | Evento |
+|---|---|---|
+| 15:02:59 | api | publica en la cola `transactions` |
+| 15:03:37 | worker | publica en la cola `cases` |
+| 15:03:38 | worker | `scored transaction=bfdb295f… score=50 rules=[atypical_amount…]` |
+| 15:03:38 | worker | `persisted case=412813d1…` |
+
+Un solo identificador de traza, cuatro spans, dos contenedores y dos saltos de
+cola. Es exactamente lo que esta fase se propuso resolver.
+
+Consulta guardada para reproducirlo: `centinela-traza-completa`. O directamente:
+
+```kql
+ContainerAppConsoleLogs_CL
+| extend trace = extract('trace=([0-9a-f]{32})', 1, Log_s)
+| where isnotempty(trace)
+| summarize contenedores = make_set(ContainerAppName_s) by trace
+| where array_length(contenedores) > 1
+```
+
+**Lo que no funciona:** la exportación al portal de Application Insights, por lo
+descrito en §5b. Las trazas se ven correlacionando logs en Log Analytics, no en
+la vista de cascada de App Insights.

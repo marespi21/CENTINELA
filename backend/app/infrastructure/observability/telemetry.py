@@ -72,7 +72,24 @@ def setup_telemetry(service_name: str, service_version: str = "1.0.0") -> bool:
             }
         )
         tracer_provider = TracerProvider(resource=resource)
-        tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        # Trazado y EXPORTACIÓN son cosas distintas, y conviene poder separarlas.
+        #
+        # Con `OTEL_TRACES_EXPORTER=none` se siguen creando spans y, sobre todo,
+        # se siguen generando y propagando los `trace_id` — que es lo que hace
+        # útiles los logs correlacionados y lo que permite seguir una petición
+        # de la API al worker a través de la cola. Solo se deja de mandar a un
+        # colector.
+        #
+        # Hace falta porque el agente gestionado de Container Apps puede estar
+        # declarado pero no aceptar nada: en ese caso el SDK entra en un bucle
+        # de reintentos que quema CPU sin que llegue una sola traza.
+        if os.getenv("OTEL_TRACES_EXPORTER", "otlp").strip().lower() != "none":
+            tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        else:
+            logger.info(
+                "exportación de trazas deshabilitada (OTEL_TRACES_EXPORTER=none); "
+                "se siguen generando trace_id para correlacionar los logs"
+            )
         trace.set_tracer_provider(tracer_provider)
 
         # Métricas: se respeta la convención estándar `OTEL_METRICS_EXPORTER`.

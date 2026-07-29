@@ -259,10 +259,17 @@ API_ENV_VARS=(
   "ENVIRONMENT=${ENV}"
   # DefaultAzureCredential debe elegir ESTA identidad de usuario, no otra.
   "AZURE_CLIENT_ID=${IDENTITY_CLIENT_ID}"
-  # El agente OTel de Container Apps reenvia trazas y logs a Application
-  # Insights pero NO metricas: exportarlas contra el resetea la conexion y el
-  # SDK entra en un bucle de reintentos que quema CPU y ahoga los logs.
-  # `none` es la convencion estandar de OpenTelemetry para desactivarlas.
+  # El agente OTel gestionado de Container Apps queda DECLARADO para trazas y
+  # logs pero no acepta ninguna de las dos: responde "Connection reset by peer"
+  # y su cadena de conexion a Application Insights no se aplica ni por CLI ni
+  # por ARM (probado con 2024-03-01 y 2025-01-01). El SDK entra entonces en un
+  # bucle de reintentos que quema CPU sin exportar nada.
+  #
+  # Se desactiva la EXPORTACION, no el trazado: se siguen generando y
+  # propagando los trace_id, que es lo que correlaciona los logs y permite
+  # seguir una peticion de la API al worker a traves de la cola. Esa
+  # correlacion esta verificada en produccion. Ver docs/observability.md.
+  "OTEL_TRACES_EXPORTER=none"
   "OTEL_METRICS_EXPORTER=none"
   # Los secretos entran como referencia al secreto de la app, jamás con su valor.
   "COSMOS_KEY=secretref:cosmos-key"
@@ -381,10 +388,17 @@ WORKER_ENV_VARS=(
   "DOC_INTELLIGENCE_MODEL=${DOC_INTELLIGENCE_MODEL}"
   "ENVIRONMENT=${ENV}"
   "AZURE_CLIENT_ID=${IDENTITY_CLIENT_ID}"
-  # El agente OTel de Container Apps reenvia trazas y logs a Application
-  # Insights pero NO metricas: exportarlas contra el resetea la conexion y el
-  # SDK entra en un bucle de reintentos que quema CPU y ahoga los logs.
-  # `none` es la convencion estandar de OpenTelemetry para desactivarlas.
+  # El agente OTel gestionado de Container Apps queda DECLARADO para trazas y
+  # logs pero no acepta ninguna de las dos: responde "Connection reset by peer"
+  # y su cadena de conexion a Application Insights no se aplica ni por CLI ni
+  # por ARM (probado con 2024-03-01 y 2025-01-01). El SDK entra entonces en un
+  # bucle de reintentos que quema CPU sin exportar nada.
+  #
+  # Se desactiva la EXPORTACION, no el trazado: se siguen generando y
+  # propagando los trace_id, que es lo que correlaciona los logs y permite
+  # seguir una peticion de la API al worker a traves de la cola. Esa
+  # correlacion esta verificada en produccion. Ver docs/observability.md.
+  "OTEL_TRACES_EXPORTER=none"
   "OTEL_METRICS_EXPORTER=none"
   "COSMOS_KEY=secretref:cosmos-key"
   "CASES_DB_DSN=secretref:cases-db-dsn"
