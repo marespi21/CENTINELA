@@ -138,12 +138,42 @@ curl -X POST "$API/documents" \
 curl "$API/cases/<uuid-del-caso>/documents" -H "X-API-Key: adm-key"
 ```
 
-## 8. Estado
+## 8. Estado — **validado en vivo** (2026-07-29)
 
-Implementado y probado con dobles en memoria (22 tests nuevos; 139 en total).
-**No validado todavía contra el servicio real de Document Intelligence** — eso
-requiere el despliegue en Container Apps, pendiente de que los paquetes de GHCR
-pasen a públicos. El parseo de campos del SDK es deliberadamente tolerante
-(acepta atributos y claves de diccionario) porque la forma de los valores cambia
-entre versiones, pero esa tolerancia es una precaución, no un sustituto de la
-prueba contra el servicio.
+Implementado, probado con dobles en memoria (22 tests) y **verificado contra el
+servicio real de Document Intelligence F0** sobre el despliegue en Container Apps.
+
+Prueba positiva — comprobante que cuadra:
+
+```json
+{
+  "verdict": "coincide",
+  "verificationSummary": "El comprobante respalda la transacción (2 campo(s) contrastado(s))."
+}
+```
+
+Los **2 campos contrastados** son importe y fecha. El comercio del recibo
+(`CASINO ROYAL BOGOTA`) no se parece en nada al `merchant_id` de la transacción
+(`m9`) y aun así el veredicto es `coincide`: confirma en producción la decisión
+de §3 de dejar el comercio como informativo. Si hubiera contado, el sistema
+habría marcado como fraude un comprobante legítimo.
+
+Prueba negativa — comprobante de 50 000 sobre una transacción de 2 500 000:
+
+```
+veredicto : discrepa
+resumen   : El comprobante contradice la transacción en: importe.
+```
+
+Ambas direcciones importan. Que apruebe lo legítimo no vale de nada si no
+**detecta el fraude**, que es para lo que existe la fase; y detectar fraude no
+vale de nada si marca como sospechoso cualquier ticket real.
+
+La cadena completa quedó ejercitada de punta a punta, incluido lo que ninguna
+prueba local podía cubrir: **autenticación contra Document Intelligence por
+Managed Identity, sin ninguna clave** (requiere el subdominio personalizado que
+crea `infra/document-intelligence.sh`), y el despertar del worker por KEDA ante
+un mensaje en la cola `documents`.
+
+Tiempo observado: ~60 s desde la subida hasta el veredicto persistido con el
+worker arrancando desde cero réplicas; ~20 s con el worker ya caliente.
