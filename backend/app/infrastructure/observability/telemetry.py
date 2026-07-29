@@ -42,7 +42,18 @@ def setup_telemetry(service_name: str, service_version: str = "1.0.0") -> bool:
     global _configured
     if _configured:
         return True
-    if not telemetry_enabled():
+
+    traces_exporter = os.getenv("OTEL_TRACES_EXPORTER", "otlp").strip().lower()
+
+    # Trazar y exportar son decisiones independientes, y confundirlas cuesta
+    # caro: la primera versión de esto solo inicializaba el proveedor cuando
+    # había endpoint, así que al desactivar la exportación desaparecieron
+    # también los `trace_id` — es decir, justo la correlación de logs que se
+    # quería conservar.
+    #
+    # `OTEL_TRACES_EXPORTER=none` es la señal explícita de "quiero trazas, no
+    # las mandes a ningún sitio": se inicializa igual, sin exportador.
+    if not telemetry_enabled() and traces_exporter != "none":
         logger.info("telemetría OTLP deshabilitada (sin OTEL_EXPORTER_OTLP_ENDPOINT)")
         return False
 
@@ -83,7 +94,7 @@ def setup_telemetry(service_name: str, service_version: str = "1.0.0") -> bool:
         # Hace falta porque el agente gestionado de Container Apps puede estar
         # declarado pero no aceptar nada: en ese caso el SDK entra en un bucle
         # de reintentos que quema CPU sin que llegue una sola traza.
-        if os.getenv("OTEL_TRACES_EXPORTER", "otlp").strip().lower() != "none":
+        if traces_exporter != "none":
             tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
         else:
             logger.info(

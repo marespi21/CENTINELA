@@ -125,3 +125,44 @@ class TestCompatibilidad:
 
         assert parsed.blob_name == "doc.pdf"
         assert parsed.case_id == "caso-1"
+
+
+class TestTrazarNoEsExportar:
+    """Regresión: desactivar la exportación no puede matar los `trace_id`.
+
+    Ocurrió en producción (Sprint 6, Fase 3). El agente OTel de Container Apps
+    no aceptaba nada, así que se desactivó la exportación — y con ella
+    desaparecieron los identificadores de traza, que eran justo lo que estaba
+    dando valor: sin ellos no se puede seguir una petición de la API al worker
+    a través de la cola mirando los logs.
+
+    La causa era hacer depender la inicialización del proveedor de que existiera
+    un endpoint al que exportar. Son decisiones independientes.
+    """
+
+    def test_hay_trazas_aunque_no_haya_a_donde_exportarlas(self, monkeypatch) -> None:
+        import app.infrastructure.observability.telemetry as telemetry
+
+        monkeypatch.setattr(telemetry, "_configured", False)
+        monkeypatch.setenv("OTEL_TRACES_EXPORTER", "none")
+        # También las métricas: si no, el test monta un exportador real que
+        # intenta salir a la red y ensucia la salida con errores de timeout.
+        monkeypatch.setenv("OTEL_METRICS_EXPORTER", "none")
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+
+        assert telemetry.setup_telemetry("prueba") is True
+
+        from opentelemetry import trace
+
+        with telemetry.get_tracer("t").start_as_current_span("s"):
+            assert trace.get_current_span().get_span_context().is_valid
+
+    def test_sin_configuracion_alguna_sigue_siendo_no_op(self, monkeypatch) -> None:
+        """No romper el caso de tests y desarrollo local: sin nada, nada."""
+        import app.infrastructure.observability.telemetry as telemetry
+
+        monkeypatch.setattr(telemetry, "_configured", False)
+        monkeypatch.delenv("OTEL_TRACES_EXPORTER", raising=False)
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+
+        assert telemetry.setup_telemetry("prueba") is False
