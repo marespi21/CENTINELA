@@ -107,6 +107,16 @@ ACA_WORKER_MAX_REPLICAS="${ACA_WORKER_MAX_REPLICAS:-3}"
 # Mensajes en cola por réplica antes de que KEDA añada otra.
 ACA_QUEUE_LENGTH="${ACA_QUEUE_LENGTH:-5}"
 
+# Verificación documental / OCR — Azure AI Document Intelligence (Sprint 6, Fase 2).
+# SKU F0 = capa gratuita (500 páginas/mes). Azure permite UNA sola instancia F0
+# de este tipo por suscripción, así que el nombre no lleva sufijo aleatorio.
+DOC_INTELLIGENCE=di-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}
+DOC_INTELLIGENCE_SKU="${DOC_INTELLIGENCE_SKU:-F0}"
+# Región con disponibilidad de Document Intelligence.
+DOC_INTELLIGENCE_LOCATION="${DOC_INTELLIGENCE_LOCATION:-eastus}"
+# prebuilt-receipt cubre tickets y recibos; prebuilt-invoice, facturas.
+DOC_INTELLIGENCE_MODEL="${DOC_INTELLIGENCE_MODEL:-prebuilt-receipt}"
+
 # Nombres de los secretos ya existentes en Key Vault (los crea security.sh).
 KV_SECRET_API_KEYS=api-keys
 KV_SECRET_COSMOS_KEY=cosmos-db-key

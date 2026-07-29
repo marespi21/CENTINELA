@@ -17,16 +17,32 @@ from __future__ import annotations
 from functools import lru_cache
 
 from app.application.services.rule_based_explainer import RuleBasedExplainer
+from app.application.services.null_document_analyzer import NullDocumentAnalyzer
 from app.application.use_cases.persist_opened_case import PersistOpenedCaseUseCase
 from app.application.use_cases.score_transaction import ScoreTransactionUseCase
+from app.application.use_cases.verify_document import VerifyDocumentUseCase
+from app.domain.repositories.blob_storage import BlobStorage
+from app.domain.repositories.case_document_write_repository import (
+    CaseDocumentWriteRepository,
+)
 from app.domain.repositories.case_queue import CaseQueue
+from app.domain.repositories.case_read_repository import CaseReadRepository
 from app.domain.repositories.case_write_repository import CaseWriteRepository
+from app.domain.repositories.document_analyzer import DocumentAnalyzer
 from app.domain.repositories.score_repository import ScoreRepository
 from app.domain.repositories.transaction_history_repository import (
     TransactionHistoryRepository,
 )
+from app.domain.services.document_verifier import DocumentVerifier
 from app.infrastructure.config.settings import settings
 from app.infrastructure.messaging.in_memory_case_queue import InMemoryCaseQueue
+from app.infrastructure.repositories.in_memory_blob_storage import InMemoryBlobStorage
+from app.infrastructure.repositories.in_memory_case_document_write_repository import (
+    InMemoryCaseDocumentWriteRepository,
+)
+from app.infrastructure.repositories.in_memory_case_read_repository import (
+    InMemoryCaseReadRepository,
+)
 from app.infrastructure.repositories.in_memory_case_write_repository import (
     InMemoryCaseWriteRepository,
 )
@@ -125,3 +141,73 @@ def build_score_use_case() -> ScoreTransactionUseCase:
 def build_persist_case_use_case() -> PersistOpenedCaseUseCase:
     """Consumidor de la cola `cases` (módulo Camila)."""
     return PersistOpenedCaseUseCase(build_case_write_repository())
+
+
+# --- Verificación documental (Sprint 6, Fase 2) ------------------------------
+
+
+def build_document_analyzer() -> DocumentAnalyzer:
+    """Composition root del OCR.
+
+    Con `DOC_INTELLIGENCE_ENDPOINT` → Azure AI Document Intelligence (capa F0).
+    Sin configuración → un analizador nulo que devuelve una extracción vacía, de
+    modo que el documento se registra en el caso y queda con veredicto ILEGIBLE
+    en vez de tumbar el worker por falta de configuración.
+    """
+    if settings.doc_intelligence_configured:
+        from app.infrastructure.azure.document_intelligence import (
+            AzureDocumentIntelligenceAnalyzer,
+        )
+
+        return AzureDocumentIntelligenceAnalyzer(
+            endpoint=settings.doc_intelligence_endpoint,
+            api_key=settings.doc_intelligence_key or None,
+            model_id=settings.doc_intelligence_model,
+        )
+    return NullDocumentAnalyzer()
+
+
+def build_blob_storage() -> BlobStorage:
+    """Almacenamiento de documentos: Azure Blob si hay Storage; si no, memoria."""
+    if azure_configured():
+        from app.infrastructure.azure.blob_storage import AzureBlobStorage
+
+        return AzureBlobStorage(
+            container_name=settings.blob_container,
+            connection_string=settings.storage_connection_string or None,
+            account_url=settings.blob_endpoint or None,
+        )
+    return InMemoryBlobStorage()
+
+
+def build_case_read_repository() -> CaseReadRepository:
+    if settings.cases_db_configured:
+        from app.infrastructure.postgres.pg_case_read_repository import (
+            PgCaseReadRepository,
+        )
+
+        return PgCaseReadRepository(dsn=settings.cases_db_dsn)
+    return InMemoryCaseReadRepository()
+
+
+def build_case_document_write_repository() -> CaseDocumentWriteRepository:
+    if settings.cases_db_configured:
+        from app.infrastructure.postgres.pg_case_document_write_repository import (
+            PgCaseDocumentWriteRepository,
+        )
+
+        return PgCaseDocumentWriteRepository(dsn=settings.cases_db_dsn)
+    return InMemoryCaseDocumentWriteRepository()
+
+
+@lru_cache(maxsize=1)
+def build_verify_document_use_case() -> VerifyDocumentUseCase:
+    """Consumidor de la cola `documents`, que hasta la Fase 2 no tenía ninguno."""
+    return VerifyDocumentUseCase(
+        blob_storage=build_blob_storage(),
+        analyzer=build_document_analyzer(),
+        verifier=DocumentVerifier(settings.verification_config),
+        cases=build_case_read_repository(),
+        history=build_history_repository(),
+        documents=build_case_document_write_repository(),
+    )

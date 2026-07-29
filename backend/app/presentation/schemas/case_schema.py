@@ -95,6 +95,19 @@ class CaseDocumentResponse(BaseModel):
     content_type: str = Field(alias="contentType", serialization_alias="contentType")
     url: str
     expires_at: datetime = Field(alias="expiresAt", serialization_alias="expiresAt")
+    # Verificación documental (Sprint 6, Fase 2). Nulos mientras el worker no ha
+    # procesado el documento, o si se subió sin caso contra el que contrastar.
+    verdict: str | None = Field(
+        default=None, alias="verdict", serialization_alias="verdict"
+    )
+    verification_summary: str | None = Field(
+        default=None,
+        alias="verificationSummary",
+        serialization_alias="verificationSummary",
+    )
+    verified_at: datetime | None = Field(
+        default=None, alias="verifiedAt", serialization_alias="verifiedAt"
+    )
 
 
 class CaseDocumentListResponse(BaseModel):

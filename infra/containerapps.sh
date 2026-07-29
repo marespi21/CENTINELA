@@ -183,6 +183,7 @@ API_ENV_VARS=(
   "STORAGE_ACCOUNT=${STORAGE_ACCOUNT}"
   "TRANSACTIONS_QUEUE=${QUEUE_NAME}"
   "CASES_QUEUE=${CASES_QUEUE}"
+  "DOCUMENTS_QUEUE=${DOCUMENTS_QUEUE}"
   "BLOB_CONTAINER=${BLOB_CONTAINER}"
   "AUTH_ENABLED=true"
   "ENVIRONMENT=${ENV}"
@@ -277,6 +278,17 @@ fi
 
 # --- 7. Worker (sin ingress, escala por longitud de cola) --------------------
 echo "[8/8] Container App del worker..."
+# Verificación documental (Fase 2): si el recurso de OCR existe, el worker
+# recibe su endpoint y verifica; si no, cae al analizador nulo y solo vincula el
+# documento al caso. Sin clave: se autentica con la Managed Identity.
+DI_ENDPOINT="$(az cognitiveservices account show -g "${RESOURCE_GROUP}" \
+  -n "${DOC_INTELLIGENCE}" --query properties.endpoint -o tsv 2>/dev/null || true)"
+if [[ -z "${DI_ENDPOINT}" ]]; then
+  echo "    [AVISO] Document Intelligence no aprovisionado; el worker registrará"
+  echo "            los documentos sin verificarlos. Créalo con:"
+  echo "            bash infra/document-intelligence.sh"
+fi
+
 WORKER_ENV_VARS=(
   "COSMOS_ENDPOINT=${COSMOS_ENDPOINT}"
   "COSMOS_DATABASE=${COSMOS_DATABASE}"
@@ -284,6 +296,10 @@ WORKER_ENV_VARS=(
   "STORAGE_ACCOUNT=${STORAGE_ACCOUNT}"
   "TRANSACTIONS_QUEUE=${QUEUE_NAME}"
   "CASES_QUEUE=${CASES_QUEUE}"
+  "DOCUMENTS_QUEUE=${DOCUMENTS_QUEUE}"
+  "BLOB_CONTAINER=${BLOB_CONTAINER}"
+  "DOC_INTELLIGENCE_ENDPOINT=${DI_ENDPOINT}"
+  "DOC_INTELLIGENCE_MODEL=${DOC_INTELLIGENCE_MODEL}"
   "ENVIRONMENT=${ENV}"
   "AZURE_CLIENT_ID=${IDENTITY_CLIENT_ID}"
   "COSMOS_KEY=secretref:cosmos-key"
@@ -316,7 +332,7 @@ fi
 # Regla KEDA: una réplica más por cada ACA_QUEUE_LENGTH mensajes pendientes.
 # La autenticación del scaler va por la misma Managed Identity, así que tampoco
 # aquí hace falta una connection string de storage.
-for QUEUE in "${QUEUE_NAME}" "${CASES_QUEUE}"; do
+for QUEUE in "${QUEUE_NAME}" "${CASES_QUEUE}" "${DOCUMENTS_QUEUE}"; do
   az containerapp update -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" \
     --scale-rule-name "${QUEUE}-scaler" \
     --scale-rule-type azure-queue \

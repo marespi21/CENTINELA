@@ -1,11 +1,17 @@
+azure-ai-documentintelligence==1.0.2
+    # via -r requirements-worker.in
 azure-core==1.41.0
     # via
+    #   azure-ai-documentintelligence
     #   azure-cosmos
     #   azure-identity
+    #   azure-storage-blob
     #   azure-storage-queue
 azure-cosmos==4.9.0
     # via -r requirements-worker.in
 azure-identity==1.25.3
+    # via -r requirements-worker.in
+azure-storage-blob==12.30.0
     # via -r requirements-worker.in
 azure-storage-queue==12.17.0
     # via -r requirements-worker.in
@@ -18,6 +24,7 @@ charset-normalizer==3.4.9
 cryptography==49.0.0
     # via
     #   azure-identity
+    #   azure-storage-blob
     #   azure-storage-queue
     #   msal
     #   pyjwt
@@ -26,7 +33,10 @@ googleapis-common-protos==1.75.0
 idna==3.18
     # via requests
 isodate==0.7.2
-    # via azure-storage-queue
+    # via
+    #   azure-ai-documentintelligence
+    #   azure-storage-blob
+    #   azure-storage-queue
 msal==1.37.0
     # via
     #   azure-identity
@@ -75,9 +85,11 @@ requests==2.34.2
     #   opentelemetry-exporter-otlp-proto-http
 typing-extensions==4.16.0
     # via
+    #   azure-ai-documentintelligence
     #   azure-core
     #   azure-cosmos
     #   azure-identity
+    #   azure-storage-blob
     #   azure-storage-queue
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-http

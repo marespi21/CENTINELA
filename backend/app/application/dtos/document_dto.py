@@ -11,6 +11,10 @@ class UploadDocumentInput:
     filename: str
     content_type: str
     content: bytes
+    # Caso al que respalda el documento (Sprint 6, Fase 2). Opcional para no
+    # romper a quien ya llama a POST /documents sin él: sin caso, el documento
+    # se almacena pero no hay transacción contra la que contrastarlo.
+    case_id: str | None = None
 
 
 @dataclass(frozen=True)

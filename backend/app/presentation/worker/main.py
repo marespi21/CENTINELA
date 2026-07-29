@@ -40,6 +40,7 @@ from app.presentation.worker.composition import (
     azure_configured,
     build_persist_case_use_case,
     build_score_use_case,
+    build_verify_document_use_case,
 )
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,15 @@ def build_pumps(config: WorkerConfig) -> list[QueuePump]:
     def handle_case(content: str) -> None:
         logger.info("persisted case=%s", build_persist_case_use_case().execute(content))
 
+    def handle_document(content: str) -> None:
+        verification = build_verify_document_use_case().execute(content)
+        if verification is not None:
+            logger.info(
+                "documento verificado veredicto=%s resumen=%s",
+                verification.verdict.value,
+                verification.summary,
+            )
+
     return [
         QueuePump(
             settings.transactions_queue, consumer_for(settings.transactions_queue),
@@ -207,6 +217,12 @@ def build_pumps(config: WorkerConfig) -> list[QueuePump]:
         QueuePump(
             settings.cases_queue, consumer_for(settings.cases_queue),
             handle_case, config,
+        ),
+        # Cola `documents`: existía desde la semana 1 pero nadie la consumía, así
+        # que los eventos `document.uploaded` se acumulaban sin procesarse.
+        QueuePump(
+            settings.documents_queue, consumer_for(settings.documents_queue),
+            handle_document, config,
         ),
     ]
 

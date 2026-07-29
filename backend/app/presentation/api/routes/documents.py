@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 
 from app.application.dtos.document_dto import UploadDocumentInput
 from app.application.use_cases.upload_document import UploadDocumentUseCase
@@ -21,11 +21,14 @@ router = APIRouter(prefix="/documents", tags=["documents"])
     summary="Subir un documento",
     description=(
         "Recibe un archivo (multipart/form-data), lo almacena en Blob Storage "
-        "y publica un evento en la Queue para procesamiento posterior."
+        "y publica un evento en la Queue para procesamiento posterior. Si se "
+        "indica `caseId`, el motor de verificación documental extraerá los "
+        "datos del comprobante y los contrastará con la transacción del caso."
     ),
 )
 async def upload_document(
     file: UploadFile = File(...),
+    case_id: str | None = Form(default=None, alias="caseId"),
     use_case: UploadDocumentUseCase = Depends(get_upload_document_use_case),
     _principal: Principal = Depends(
         require_roles(Role.SERVICIO, Role.ADMINISTRADOR)
@@ -37,6 +40,7 @@ async def upload_document(
             filename=file.filename or "",
             content_type=file.content_type or "application/octet-stream",
             content=content,
+            case_id=case_id,
         )
     )
     return DocumentAcceptedResponse(

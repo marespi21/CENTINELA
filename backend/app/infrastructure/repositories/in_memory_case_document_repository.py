@@ -23,6 +23,18 @@ class InMemoryCaseDocumentRepository(CaseDocumentRepository):
     def add(self, case_id: str, document: CaseDocument) -> None:
         self._by_case.setdefault(case_id, []).append(document)
 
+    def upsert(self, case_id: str, document: CaseDocument) -> None:
+        """Inserta o reemplaza por `blob_name`.
+
+        La cola de documentos entrega "al menos una vez": reprocesar el mismo
+        mensaje debe actualizar la entrada, no duplicarla en la lista del caso.
+        """
+        docs = self._by_case.setdefault(case_id, [])
+        self._by_case[case_id] = [
+            doc for doc in docs if doc.blob_name != document.blob_name
+        ]
+        self._by_case[case_id].append(document)
+
     def list_for_case(self, case_id: str) -> list[CaseDocument]:
         docs = self._by_case.get(case_id, [])
         return sorted(docs, key=lambda d: d.uploaded_at, reverse=True)
