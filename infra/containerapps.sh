@@ -213,13 +213,32 @@ if az extension show --name application-insights &>/dev/null || \
     -g "${RESOURCE_GROUP}" -a "appi-${PROJECT}-${ENV}${SUFFIX:+-${SUFFIX}}" \
     --query connectionString -o tsv 2>/dev/null || true)"
 fi
-if [[ -n "${APPINSIGHTS_CONN}" ]]; then
+if [[ -z "${APPINSIGHTS_CONN}" ]]; then
+  echo "    [AVISO] no se pudo obtener la cadena de conexión de Application Insights."
+  echo "            Los contenedores emitirán OTLP pero el agente no lo reenviará:"
+  echo "            no habrá trazas en el portal. Instala la extensión y repite:"
+  echo "              az extension add --name application-insights"
+else
   az containerapp env telemetry app-insights set \
     -g "${RESOURCE_GROUP}" -n "${ACA_ENVIRONMENT}" \
     --connection-string "${APPINSIGHTS_CONN}" \
     --enable-open-telemetry-traces true --enable-open-telemetry-logs true \
     --output none 2>/dev/null || \
-    echo "    [AVISO] no se pudo activar el agente OTel; la app seguirá sin exportar trazas."
+    echo "    [AVISO] falló la activación del agente OTel."
+
+  # VERIFICAR el efecto, no dar por bueno el comando. Ojo: Azure REDACTA la
+  # cadena de conexión al leerla (`appInsightsConfiguration.connectionString`
+  # sale siempre null), así que comprobar ese campo no vale para nada — lo que
+  # sí se puede verificar es que los destinos quedaron declarados.
+  OTEL_DEST="$(az containerapp env show -g "${RESOURCE_GROUP}" -n "${ACA_ENVIRONMENT}" \
+    --query "properties.openTelemetryConfiguration.tracesConfiguration.destinations" \
+    -o tsv 2>/dev/null || true)"
+  if [[ "${OTEL_DEST}" == *"appInsights"* ]]; then
+    echo "    agente OTel activo (trazas y logs → Application Insights)."
+  else
+    echo "    [AVISO] el agente OTel NO quedó configurado para trazas."
+    echo "            Los contenedores emitirán OTLP a un colector que no reenvía nada."
+  fi
 fi
 
 # --- 6. API (ingress público, escala por HTTP) -------------------------------
@@ -240,6 +259,11 @@ API_ENV_VARS=(
   "ENVIRONMENT=${ENV}"
   # DefaultAzureCredential debe elegir ESTA identidad de usuario, no otra.
   "AZURE_CLIENT_ID=${IDENTITY_CLIENT_ID}"
+  # El agente OTel de Container Apps reenvia trazas y logs a Application
+  # Insights pero NO metricas: exportarlas contra el resetea la conexion y el
+  # SDK entra en un bucle de reintentos que quema CPU y ahoga los logs.
+  # `none` es la convencion estandar de OpenTelemetry para desactivarlas.
+  "OTEL_METRICS_EXPORTER=none"
   # Los secretos entran como referencia al secreto de la app, jamás con su valor.
   "COSMOS_KEY=secretref:cosmos-key"
   "CASES_DB_DSN=secretref:cases-db-dsn"
@@ -357,6 +381,11 @@ WORKER_ENV_VARS=(
   "DOC_INTELLIGENCE_MODEL=${DOC_INTELLIGENCE_MODEL}"
   "ENVIRONMENT=${ENV}"
   "AZURE_CLIENT_ID=${IDENTITY_CLIENT_ID}"
+  # El agente OTel de Container Apps reenvia trazas y logs a Application
+  # Insights pero NO metricas: exportarlas contra el resetea la conexion y el
+  # SDK entra en un bucle de reintentos que quema CPU y ahoga los logs.
+  # `none` es la convencion estandar de OpenTelemetry para desactivarlas.
+  "OTEL_METRICS_EXPORTER=none"
   "COSMOS_KEY=secretref:cosmos-key"
   "CASES_DB_DSN=secretref:cases-db-dsn"
 )

@@ -96,6 +96,35 @@ Consultas guardadas para investigar: traza completa por `trace_id`, casos por
 ventana de tiempo, reparto de veredictos documentales y ranking de reglas más
 activadas.
 
+## 5b. Métricas: el agente de Container Apps no las acepta
+
+Descubierto desplegando, no leyendo documentación. El agente OTel gestionado del
+entorno reenvía **trazas y logs** a Application Insights, pero **no métricas**:
+al exportarlas contra él responde con `Connection reset by peer`, y el SDK entra
+en un bucle de reintentos que quema CPU y ahoga los logs de la aplicación con
+avisos.
+
+```
+opentelemetry.exporter.otlp.proto.http.metric_exporter
+  Transient error ('Connection aborted.', ConnectionResetError(104, ...))
+  Failed to export metrics batch due to timeout, max retries or shutdown.
+```
+
+La solución respeta la convención estándar: `setup_telemetry` honra
+`OTEL_METRICS_EXPORTER`, y el despliegue pone `OTEL_METRICS_EXPORTER=none` en
+ambos contenedores. Las trazas siguen activas; los contadores e histogramas se
+instancian igual pero no se exportan.
+
+Para recuperarlos hay que darles un destino que sí los acepte: un colector OTLP
+propio, o Datadog, ambos soportados por el agente. Mientras tanto, la
+observabilidad operativa se apoya en trazas y en los logs estructurados, que sí
+llegan.
+
+> **Cuidado con `appInsightsConfiguration.connectionString`.** Al leerlo, Azure
+> devuelve siempre `null` aunque esté configurado. No sirve para verificar nada:
+> la única señal fiable de que el agente está bien conectado es que dejen de
+> aparecer errores del exportador en los logs del contenedor.
+
 ## 6. Coste
 
 Cero cómputo nuevo. La ingesta va contra los **5 GB/mes gratuitos** de Log

@@ -75,12 +75,27 @@ def setup_telemetry(service_name: str, service_version: str = "1.0.0") -> bool:
         tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
         trace.set_tracer_provider(tracer_provider)
 
-        metrics.set_meter_provider(
-            MeterProvider(
-                resource=resource,
-                metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
+        # Métricas: se respeta la convención estándar `OTEL_METRICS_EXPORTER`.
+        #
+        # Hace falta porque no todos los colectores aceptan métricas aunque
+        # acepten trazas. El agente gestionado de Azure Container Apps es justo
+        # ese caso: reenvía trazas y logs a Application Insights, pero NO
+        # métricas. Exportarlas contra él resetea la conexión y el SDK entra en
+        # un bucle de reintentos que quema CPU y ahoga los logs con avisos.
+        if os.getenv("OTEL_METRICS_EXPORTER", "otlp").strip().lower() != "none":
+            metrics.set_meter_provider(
+                MeterProvider(
+                    resource=resource,
+                    metric_readers=[
+                        PeriodicExportingMetricReader(OTLPMetricExporter())
+                    ],
+                )
             )
-        )
+        else:
+            logger.info(
+                "exportación de métricas deshabilitada (OTEL_METRICS_EXPORTER=none); "
+                "las trazas siguen activas"
+            )
     except Exception:  # pragma: no cover - defensivo
         logger.exception("no se pudo configurar la telemetría; se continúa sin ella")
         return False
