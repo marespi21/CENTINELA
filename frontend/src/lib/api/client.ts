@@ -3,7 +3,7 @@
  * Solo habla con los route handlers de Next (/api/*); nunca conoce la API key.
  */
 
-import type { CaseDetailDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
+import type { CaseDetailDto, CaseDocumentListDto, CaseListDto, CaseListParams, AssignCaseDto, ResolveCaseDto } from "./types";
 import { ApiError } from "./types";
 
 function buildQuery(params: CaseListParams): string {
@@ -49,6 +49,13 @@ export async function listCases(params: CaseListParams = {}): Promise<CaseListDt
 /** Detalle de caso vía BFF. */
 export async function getCase(caseId: string): Promise<CaseDetailDto> {
   return bffFetch<CaseDetailDto>(`/api/cases/${encodeURIComponent(caseId)}`);
+}
+
+/** Documentos de caso vía BFF; las URLs SAS devueltas son temporales. */
+export async function listCaseDocuments(caseId: string): Promise<CaseDocumentListDto> {
+  return bffFetch<CaseDocumentListDto>(
+    `/api/cases/${encodeURIComponent(caseId)}/documents`,
+  );
 }
 
 /** Asignar caso vía BFF: POST /api/cases/{caseId}/assign. */

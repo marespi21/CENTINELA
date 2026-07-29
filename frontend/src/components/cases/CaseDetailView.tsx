@@ -8,6 +8,7 @@ import type { CaseDetailDto } from '@/lib/api/types';
 import { TransactionCard } from './TransactionCard';
 import { CaseExplanationCard } from './CaseExplanationCard';
 import { AuditTrailCard } from './AuditTrailCard';
+import { DocumentsCard } from './DocumentsCard';
 import { CaseActionsHeader, UserRole } from './CaseActionsHeader';
 import { NotFoundState } from '@/components/ui/NotFoundState';
 import { Shield } from 'lucide-react';
@@ -138,6 +139,9 @@ export function CaseDetailView({ caseId, initialData }: CaseDetailViewProps) {
         {caseDetail.explanation && (
           <CaseExplanationCard explanation={caseDetail.explanation} />
         )}
+
+        {/* Documentos adjuntos */}
+        <DocumentsCard caseId={caseId} />
 
         {/* Audit Trail */}
         <AuditTrailCard events={caseDetail.auditTrail || []} />

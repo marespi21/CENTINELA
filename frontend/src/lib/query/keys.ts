@@ -5,5 +5,6 @@ export const queryKeys = {
     all: ["cases"] as const,
     list: (params: CaseListParams) => ["cases", "list", params] as const,
     detail: (caseId: string) => ["cases", "detail", caseId] as const,
+    documents: (caseId: string) => ["cases", "documents", caseId] as const,
   },
 };
