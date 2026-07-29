@@ -149,12 +149,13 @@ escrito por qué se descartaron en lugar de silenciar la regla:
 | `cosmos-db-key`, `cases-db-dsn`, `api-keys` | Key Vault | Secreto de Container Apps por `keyvaultref` + Managed Identity |
 | Colas y Blob Storage | — | RBAC sobre la Managed Identity: no hay credencial |
 | Publicación en GHCR | — | `GITHUB_TOKEN` efímero de Actions; no hay PAT en el repo |
-| Pull desde GHCR privado | Key Vault (`ghcr-pull-token`) | `--registry-password secretref:ghcr-token` |
+| Pull desde GHCR | — | Paquete público: **pull anónimo, sin credencial** |
 
-El único secreto de larga duración es el token de *pull* de GHCR, y es el precio
-de la decisión de registro (§6). Nunca aparece en la línea de comandos: se siembra
-en Key Vault con `az keyvault secret set --file` y Container Apps lo resuelve por
-referencia.
+**El sistema no tiene ningún secreto de larga duración.** Con el paquete público
+desaparece el token de *pull*, que era el único (§6). Si se vuelve a
+`REGISTRY_VISIBILITY=private`, el script lo exige de nuevo y lo gestiona sin que
+aparezca nunca en la línea de comandos: se siembra en Key Vault con
+`az keyvault secret set --file` y Container Apps lo resuelve por referencia.
 
 ---
 
@@ -163,40 +164,49 @@ referencia.
 | Servicio | Capa gratuita | Cómo se aprovecha |
 |---|---|---|
 | Azure Container Apps | 180 000 vCPU-s + 360 000 GiB-s + 2 M peticiones/mes | A 0,25 vCPU / 0,5 GiB son **~200 h/mes de una réplica**. Con `min-replicas=0` en ambas apps, sin tráfico el gasto es 0. |
-| GHCR (paquetes privados) | 500 MB de almacenamiento, 1 GB/mes de transferencia (plan Free) | Las dos imágenes suman ~109 MiB por juego de etiquetas; las capas se comparten entre etiquetas. |
+| GHCR (paquetes **públicos**) | Almacenamiento y transferencia **ilimitados y gratuitos** | Las dos imágenes suman ~109 MiB por juego de etiquetas; las capas se comparten entre etiquetas. |
 | Log Analytics / App Insights | 5 GB/mes de ingesta | Retención puesta a 7 días. |
 
 **Estimación de crédito para la Fase 1: ~0 USD**, mientras el escalado a cero
 absorba la carga de demo. El objetivo del sprint (<60 USD, techo 200) no se ve
 comprometido por la contenedorización.
 
-### Riesgo a vigilar: la egress de GHCR
+### Un riesgo que se eliminó en vez de gestionarse
 
-Con `min-replicas=0`, cada arranque en frío en un nodo sin caché **descarga las
-imágenes de nuevo**. A ~109 MiB por juego completo, del orden de **9 arranques en
-frío al mes agotan el 1 GB** de transferencia del plan Free de GitHub. Los pulls
-desde GitHub Actions no cuentan, pero los de Azure sí.
+El plan original era publicar en GHCR **privado**. Al calcular el consumo apareció
+un problema: con `min-replicas=0`, cada arranque en frío en un nodo sin caché
+re-descarga las imágenes (~109 MiB el juego completo), y el plan Free de GitHub
+solo da **1 GB/mes** de transferencia para paquetes privados — del orden de
+**9 arranques en frío al mes** lo agotan. Los *pulls* desde Actions no cuentan;
+los de Azure sí.
 
-Tres salidas, por si aparece el aviso de cuota:
+Al comprobar que **el repositorio ya es público**, la salida fue evidente: publicar
+también el paquete. Las imágenes no contienen nada que el repositorio no exponga ya
+—mismo código, más dependencias de PyPI— y la auditoría de §4 certifica que no
+llevan secretos. A cambio:
 
-1. Subir `ACA_API_MIN_REPLICAS=1` — menos pulls, pero consume la cuota de ACA.
-2. Hacer público el paquete de GHCR — transferencia ilimitada, a cambio de que las
-   imágenes dejen de ser privadas.
-3. Mover a ACR Basic (~5 USD/mes) — sin límite de egress y con pull por Managed
-   Identity, que además elimina el único secreto de larga duración del sistema.
+- transferencia y almacenamiento **ilimitados y gratuitos**, el riesgo desaparece;
+- **se elimina el único secreto de larga duración del sistema** (el PAT de *pull*),
+  lo que acerca el despliegue a la regla del sprint más que la opción privada.
 
-La infraestructura está parametrizada (`REGISTRY`, `REGISTRY_NAMESPACE` en
-`infra/variables.sh`) para que la opción 3 sea un cambio de variables, no una
-reescritura.
+Se aparta así del enunciado literal («registro privado»), y es una desviación
+consciente: con el código fuente público, un paquete privado protegía un artefacto
+derivado de material ya público, y su precio era un PAT permanente más una cuota
+que la arquitectura de escalado a cero tiende a agotar.
+
+Volver atrás es una variable: `REGISTRY_VISIBILITY=private` en
+`infra/variables.sh` reactiva el modelo con token en Key Vault. Y migrar a ACR
+Basic (~5 USD/mes, *pull* por Managed Identity) es cambiar `REGISTRY` y
+`REGISTRY_NAMESPACE`, no reescribir el despliegue.
 
 ---
 
 ## 6. Decisiones y sus renuncias
 
-**GHCR en vez de ACR.** Gratis y privado, que es lo que pedía el requisito de free
-tier. Se renuncia al *pull* por Managed Identity: GHCR obliga a un PAT de larga
-duración, mientras que ACR habría dado cero credenciales de punta a punta. El PAT
-se mitiga guardándolo en Key Vault y referenciándolo, nunca escribiéndolo.
+**GHCR en vez de ACR.** Gratis, que es lo que pedía el requisito de free tier
+(ACR no tiene capa gratuita). Publicado como paquete **público** por las razones
+de §5: con el repositorio ya abierto, es lo que deja el sistema sin ningún secreto
+persistente.
 
 **Worker propio en vez de Azure Functions en contenedor.** La imagen base
 `mcr.microsoft.com/azure-functions/python:4-python3.12` pesa más de 1 GB — habría
@@ -261,16 +271,23 @@ resumen del job.
 ## 9. Estado y siguiente paso
 
 Construido, medido, auditado y probado en local: **imágenes listas**.
-`infra/containerapps.sh` está escrito y validado sintácticamente, pero **el
-despliegue en Azure no se ha ejecutado todavía**: requiere un PAT de GitHub con
-permiso `read:packages` que solo puede crear el propietario del repositorio.
+
+Secuencia de despliegue:
 
 ```bash
+# 1. El pipeline publica las imágenes al hacer push de la rama.
+git push origin fix/sprint6-fase0
+
+# 2. PASO MANUAL, una sola vez: GHCR crea los paquetes como PRIVADOS por
+#    defecto. Hay que marcarlos públicos o el pull anónimo fallará.
+#    GitHub → Packages → centinela-api  → Package settings → Change visibility
+#                     └→ centinela-worker → ídem
+
+# 3. Desplegar.
 export SUFFIX=sp5x1
-export GHCR_PULL_TOKEN=<PAT con read:packages>
-export GHCR_USER=<usuario de GitHub>
 bash infra/containerapps.sh
 ```
 
-Hasta entonces el sistema en producción sigue siendo App Service + Function App,
-intacto y funcionando.
+Hasta que eso corra, el sistema en producción sigue siendo App Service +
+Function App, intacto y funcionando. El despliegue en Container Apps **no lo
+toca**: conviven hasta validar los contenedores.

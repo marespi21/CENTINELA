@@ -111,8 +111,14 @@ ACA_QUEUE_LENGTH="${ACA_QUEUE_LENGTH:-5}"
 KV_SECRET_API_KEYS=api-keys
 KV_SECRET_COSMOS_KEY=cosmos-db-key
 KV_SECRET_CASES_DSN=cases-db-dsn
-# Token de solo-lectura de GHCR para que Container Apps pueda hacer pull de un
-# paquete privado. Se guarda en Key Vault; NUNCA en el repo ni en el pipeline.
+# Visibilidad del paquete en GHCR. Con el repositorio ya público, publicar las
+# imágenes como públicas no revela nada nuevo (mismo código, y la auditoría
+# confirma que no llevan secretos) y a cambio elimina el ÚNICO secreto de larga
+# duración del sistema: el token de pull. Container Apps hace pull anónimo.
+# Ponlo a "private" para volver al modelo con token.
+REGISTRY_VISIBILITY="${REGISTRY_VISIBILITY:-public}"
+# Solo se usa si REGISTRY_VISIBILITY=private. Se guarda en Key Vault; NUNCA en
+# el repo ni en el pipeline.
 KV_SECRET_GHCR_TOKEN=ghcr-pull-token
 
 # Alias usados por scripts legacy / mensajes

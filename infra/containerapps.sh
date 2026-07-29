@@ -81,8 +81,15 @@ assign_role "Storage Blob Data Contributor"  "${SA_ID}"
 assign_role "Key Vault Secrets User"         "${KV_ID}"
 
 # --- 3. Token de pull de GHCR en Key Vault -----------------------------------
-echo "[4/8] Token de pull del registro..."
-if [[ -n "${GHCR_PULL_TOKEN:-}" ]]; then
+echo "[4/8] Acceso al registro (${REGISTRY_VISIBILITY})..."
+# Con el paquete público, Container Apps hace pull anónimo: no hay credencial de
+# registro que gestionar, ni en Key Vault ni en ninguna parte. Es el modelo con
+# cero secretos persistentes.
+REGISTRY_ARGS=()
+REGISTRY_SECRETS=()
+if [[ "${REGISTRY_VISIBILITY}" == "public" ]]; then
+  echo "    paquete público: pull anónimo, sin credenciales."
+elif [[ -n "${GHCR_PULL_TOKEN:-}" ]]; then
   # Se siembra por FICHERO, no con --value: un valor en la línea de comandos
   # queda visible en la lista de procesos de la máquina mientras dura el `az`.
   TOKEN_FILE="$(mktemp)"
@@ -95,13 +102,28 @@ if [[ -n "${GHCR_PULL_TOKEN:-}" ]]; then
 elif az keyvault secret show --vault-name "${KEY_VAULT}" --name "${KV_SECRET_GHCR_TOKEN}" &>/dev/null; then
   echo "    ya existe en Key Vault; se reutiliza."
 else
-  echo "    [ERROR] No hay token de pull. Crea un PAT con permiso 'read:packages' y:"
+  echo "    [ERROR] REGISTRY_VISIBILITY=private pero no hay token de pull."
+  echo "            Crea un PAT con permiso 'read:packages' y exporta:"
   echo "            export GHCR_PULL_TOKEN=ghp_xxx GHCR_USER=<usuario>"
-  echo "            (si el paquete de GHCR es público, borra el bloque --registry-* de abajo)"
+  echo "            O publica el paquete y usa REGISTRY_VISIBILITY=public (sin credenciales)."
   exit 1
 fi
+
 KV_URI="$(az keyvault show -n "${KEY_VAULT}" -g "${RESOURCE_GROUP}" --query properties.vaultUri -o tsv)"
 kv_ref() { echo "${KV_URI}secrets/$1"; }
+
+# Los flags de registro solo se añaden en modo privado. En público no se pasa
+# ninguno: `az` no admite --registry-server sin credenciales asociadas.
+if [[ "${REGISTRY_VISIBILITY}" != "public" ]]; then
+  REGISTRY_ARGS=(
+    --registry-server "${REGISTRY}"
+    --registry-username "${GHCR_USER:-${REGISTRY_NAMESPACE}}"
+    --registry-password "secretref:ghcr-token"
+  )
+  REGISTRY_SECRETS=(
+    "ghcr-token=keyvaultref:$(kv_ref ${KV_SECRET_GHCR_TOKEN}),identityref:${IDENTITY_ID}"
+  )
+fi
 
 # --- 4. Log Analytics --------------------------------------------------------
 # Free tier: 5 GB/mes de ingesta y 7 días de retención, suficiente para dev.
@@ -177,11 +199,9 @@ if ! az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_API}" &>/dev/null; th
     -g "${RESOURCE_GROUP}" -n "${ACA_API}" --environment "${ACA_ENVIRONMENT}" \
     --image "${IMAGE_API}:${IMAGE_TAG}" \
     --user-assigned "${IDENTITY_ID}" \
-    --registry-server "${REGISTRY}" \
-    --registry-username "${GHCR_USER:-${REGISTRY_NAMESPACE}}" \
-    --registry-password "secretref:ghcr-token" \
+    "${REGISTRY_ARGS[@]+"${REGISTRY_ARGS[@]}"}" \
     --secrets \
-      "ghcr-token=keyvaultref:$(kv_ref ${KV_SECRET_GHCR_TOKEN}),identityref:${IDENTITY_ID}" \
+      "${REGISTRY_SECRETS[@]+"${REGISTRY_SECRETS[@]}"}" \
       "cosmos-key=keyvaultref:$(kv_ref ${KV_SECRET_COSMOS_KEY}),identityref:${IDENTITY_ID}" \
       "cases-db-dsn=keyvaultref:$(kv_ref ${KV_SECRET_CASES_DSN}),identityref:${IDENTITY_ID}" \
       "api-keys=keyvaultref:$(kv_ref ${KV_SECRET_API_KEYS}),identityref:${IDENTITY_ID}" \
@@ -275,11 +295,9 @@ if ! az containerapp show -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" &>/dev/null;
     -g "${RESOURCE_GROUP}" -n "${ACA_WORKER}" --environment "${ACA_ENVIRONMENT}" \
     --image "${IMAGE_WORKER}:${IMAGE_TAG}" \
     --user-assigned "${IDENTITY_ID}" \
-    --registry-server "${REGISTRY}" \
-    --registry-username "${GHCR_USER:-${REGISTRY_NAMESPACE}}" \
-    --registry-password "secretref:ghcr-token" \
+    "${REGISTRY_ARGS[@]+"${REGISTRY_ARGS[@]}"}" \
     --secrets \
-      "ghcr-token=keyvaultref:$(kv_ref ${KV_SECRET_GHCR_TOKEN}),identityref:${IDENTITY_ID}" \
+      "${REGISTRY_SECRETS[@]+"${REGISTRY_SECRETS[@]}"}" \
       "cosmos-key=keyvaultref:$(kv_ref ${KV_SECRET_COSMOS_KEY}),identityref:${IDENTITY_ID}" \
       "cases-db-dsn=keyvaultref:$(kv_ref ${KV_SECRET_CASES_DSN}),identityref:${IDENTITY_ID}" \
     --env-vars "${WORKER_ENV_VARS[@]}" \
