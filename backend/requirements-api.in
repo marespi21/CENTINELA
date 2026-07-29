@@ -1,0 +1,22 @@
+# Dependencias DIRECTAS de la imagen de la API de ingesta.
+# El cierre pinneado se genera con:  bash infra/compile-requirements.sh
+# No incluye herramientas de test ni el SDK de Azure Functions.
+
+fastapi==0.139.2
+uvicorn==0.51.0
+python-multipart==0.0.32       # subida de documentos (UploadFile)
+pydantic==2.13.4
+python-dotenv==1.2.2
+
+azure-identity==1.25.3         # Managed Identity (sin secretos en la imagen)
+azure-storage-queue==12.17.0   # publica el evento en la cola `transactions`
+azure-storage-blob==12.30.0    # almacenamiento de documentos
+azure-keyvault-secrets==4.11.0 # lectura de secretos en arranque
+azure-cosmos==4.9.0            # historial de transacciones
+psycopg[binary]==3.2.3         # base de casos (PostgreSQL)
+
+# Observabilidad (Sprint 6, Fase 1). Exportador HTTP a propósito: el de gRPC
+# arrastra grpcio (~40 MB de binarios) sin aportar nada en este flujo.
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-instrumentation-fastapi==0.65b0

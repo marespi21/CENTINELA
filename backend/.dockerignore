@@ -1,0 +1,42 @@
+# Todo lo que NO debe entrar al contexto de build.
+#
+# Doble propósito: reducir el tamaño de la imagen y, sobre todo, garantizar que
+# ningún secreto pueda acabar en una capa. `.env` está aquí explícitamente: un
+# `COPY . .` descuidado lo empaquetaría dentro de la imagen y quedaría legible
+# para cualquiera que haga `docker save`.
+
+# Secretos y configuración local — NUNCA en una imagen
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+local.settings.json
+
+# Entornos y cachés de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.python_packages/
+
+# Artefactos de Azure Functions (no aplican al contenedor)
+host.json
+function_app.py
+.funcignore
+
+# Pruebas y documentación: no se ejecutan en producción
+tests/
+README.md
+*.md
+
+# Control de versiones y basura del sistema
+.git/
+.gitignore
+.DS_Store

@@ -13,6 +13,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.infrastructure.config.settings import Settings
 
 
+# Rutas de sonda del contenedor. Container Apps las llama cada pocos segundos
+# desde la misma IP interna: contarlas agotaría la ventana de rate limiting y el
+# 429 haría fallar la probe, reiniciando un contenedor que está sano.
+PROBE_PATHS = frozenset({"/health", "/health/ready"})
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Limita requests por IP origen usando ventana deslizante en memoria.
 
@@ -39,7 +45,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-        if not self._enabled:
+        if not self._enabled or request.url.path in PROBE_PATHS:
             return await call_next(request)
 
         client_ip = self._client_ip(request)

@@ -1,0 +1,82 @@
+# =============================================================================
+# CENTINELA — API de ingesta de transacciones (imagen multi-stage)
+# =============================================================================
+# Etapa 1 (builder): resuelve e instala las dependencias en un virtualenv.
+# Etapa 2 (runtime):  copia SOLO ese virtualenv y el código. Ni pip, ni
+#                     compiladores, ni cachés, ni pruebas.
+#
+# Orden de capas: primero lo que casi nunca cambia (dependencias), al final lo
+# que cambia en cada commit (el código). Así un cambio de código reconstruye una
+# capa de kilobytes en vez de reinstalar 20 paquetes.
+#
+# Secretos: CERO. La imagen no recibe ningún ARG ni COPY con credenciales; toda
+# la configuración sensible llega en tiempo de ejecución como variable de
+# entorno inyectada por Container Apps desde Key Vault.
+#
+# Build:  docker build -f backend/Dockerfile.api -t centinela-api:dev backend
+# =============================================================================
+
+# --- Etapa 1: builder --------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+# El cierre pinneado se copia SOLO (sin el resto del código) para que esta capa
+# se reutilice mientras las dependencias no cambien.
+COPY requirements-api.txt ./
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir --no-compile -r requirements-api.txt && \
+    # pip/setuptools/wheel solo hacen falta para instalar: fuera del runtime.
+    /opt/venv/bin/pip uninstall --yes pip setuptools wheel 2>/dev/null || true && \
+    find /opt/venv -name '__pycache__' -type d -prune -exec rm -rf {} + && \
+    find /opt/venv -name '*.pyc' -delete
+
+# --- Etapa 2: runtime --------------------------------------------------------
+FROM python:3.12-slim AS runtime
+
+LABEL org.opencontainers.image.title="centinela-api" \
+      org.opencontainers.image.description="API de ingesta de transacciones de CENTINELA" \
+      org.opencontainers.image.source="https://github.com/marespi21/CENTINELA" \
+      org.opencontainers.image.licenses="MIT"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PORT=8000
+
+# Usuario sin privilegios: si alguien logra ejecutar código en el contenedor, no
+# lo hace como root. UID alto y fijo para que Container Apps lo respete.
+#
+# En la misma capa se borra el pip que trae la imagen base: la aplicación corre
+# desde /opt/venv y nunca instala nada en ejecución, así que dejarlo solo suma
+# tamaño y le da a un atacante una herramienta para traerse código al contenedor.
+RUN groupadd --gid 10001 centinela && \
+    useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin centinela && \
+    rm -rf /usr/local/lib/python3.12/site-packages/pip \
+           /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+           /usr/local/lib/python3.12/site-packages/setuptools \
+           /usr/local/lib/python3.12/site-packages/setuptools-*.dist-info \
+           /usr/local/lib/python3.12/site-packages/pkg_resources \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.12
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app
+COPY --chown=10001:10001 app ./app
+
+USER 10001:10001
+EXPOSE 8000
+
+# Sonda local (Container Apps usa sus propias probes contra /health). Se hace
+# con urllib del propio Python: instalar curl solo para esto añadiría paquetes
+# y superficie de ataque a cambio de nada.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('PORT','8000')}/health\", timeout=2).status==200 else 1)"
+
+# Un único proceso uvicorn por contenedor: el escalado horizontal lo hace
+# Container Apps con réplicas, no workers dentro de la imagen.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

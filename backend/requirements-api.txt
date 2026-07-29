@@ -1,0 +1,161 @@
+annotated-doc==0.0.5
+    # via fastapi
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.14.2
+    # via starlette
+asgiref==3.12.1
+    # via opentelemetry-instrumentation-asgi
+azure-core==1.41.0
+    # via
+    #   azure-cosmos
+    #   azure-identity
+    #   azure-keyvault-secrets
+    #   azure-storage-blob
+    #   azure-storage-queue
+azure-cosmos==4.9.0
+    # via -r requirements-api.in
+azure-identity==1.25.3
+    # via -r requirements-api.in
+azure-keyvault-secrets==4.11.0
+    # via -r requirements-api.in
+azure-storage-blob==12.30.0
+    # via -r requirements-api.in
+azure-storage-queue==12.17.0
+    # via -r requirements-api.in
+certifi==2026.7.22
+    # via requests
+cffi==2.1.0
+    # via cryptography
+charset-normalizer==3.4.9
+    # via requests
+click==8.4.2
+    # via uvicorn
+cryptography==49.0.0
+    # via
+    #   azure-identity
+    #   azure-storage-blob
+    #   azure-storage-queue
+    #   msal
+    #   pyjwt
+fastapi==0.139.2
+    # via -r requirements-api.in
+googleapis-common-protos==1.75.0
+    # via opentelemetry-exporter-otlp-proto-http
+h11==0.16.0
+    # via uvicorn
+idna==3.18
+    # via
+    #   anyio
+    #   requests
+isodate==0.7.2
+    # via
+    #   azure-keyvault-secrets
+    #   azure-storage-blob
+    #   azure-storage-queue
+msal==1.37.0
+    # via
+    #   azure-identity
+    #   msal-extensions
+msal-extensions==1.3.1
+    # via azure-identity
+opentelemetry-api==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+opentelemetry-exporter-otlp-proto-common==1.44.0
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.44.0
+    # via -r requirements-api.in
+opentelemetry-instrumentation==0.65b0
+    # via
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-asgi==0.65b0
+    # via opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-fastapi==0.65b0
+    # via -r requirements-api.in
+opentelemetry-proto==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.44.0
+    # via
+    #   -r requirements-api.in
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-semantic-conventions==0.65b0
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-sdk
+opentelemetry-util-http==0.65b0
+    # via
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+packaging==26.2
+    # via opentelemetry-instrumentation
+protobuf==7.35.1
+    # via
+    #   googleapis-common-protos
+    #   opentelemetry-proto
+psycopg==3.2.3
+    # via -r requirements-api.in
+psycopg-binary==3.2.3
+    # via psycopg
+pycparser==3.0
+    # via cffi
+pydantic==2.13.4
+    # via
+    #   -r requirements-api.in
+    #   fastapi
+pydantic-core==2.46.4
+    # via pydantic
+pyjwt==2.13.0
+    # via
+    #   msal
+    #   pyjwt
+python-dotenv==1.2.2
+    # via -r requirements-api.in
+python-multipart==0.0.32
+    # via -r requirements-api.in
+requests==2.34.2
+    # via
+    #   azure-core
+    #   msal
+    #   opentelemetry-exporter-otlp-proto-http
+starlette==1.3.1
+    # via fastapi
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   azure-core
+    #   azure-cosmos
+    #   azure-identity
+    #   azure-keyvault-secrets
+    #   azure-storage-blob
+    #   azure-storage-queue
+    #   fastapi
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   psycopg
+    #   pydantic
+    #   pydantic-core
+    #   starlette
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via
+    #   fastapi
+    #   pydantic
+urllib3==2.7.0
+    # via requests
+uvicorn==0.51.0
+    # via -r requirements-api.in
+wrapt==2.3.0
+    # via opentelemetry-instrumentation

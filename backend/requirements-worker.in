@@ -1,0 +1,18 @@
+# Dependencias DIRECTAS de la imagen del motor de scoring.
+# El cierre pinneado se genera con:  bash infra/compile-requirements.sh
+#
+# El worker NO sirve HTTP: no lleva fastapi, uvicorn, starlette ni
+# python-multipart. Tampoco toca Blob Storage ni Key Vault (su configuración
+# llega por variables de entorno inyectadas por Container Apps).
+
+python-dotenv==1.2.2
+
+azure-identity==1.25.3         # Managed Identity (sin secretos en la imagen)
+azure-storage-queue==12.17.0   # sondea `transactions` y `cases`
+azure-cosmos==4.9.0            # historial y scores
+psycopg[binary]==3.2.3         # persistencia de casos
+
+# Observabilidad (Sprint 6, Fase 1). Sin el instrumentador de FastAPI: aquí no
+# hay servidor HTTP que instrumentar, solo spans manuales por mensaje.
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
